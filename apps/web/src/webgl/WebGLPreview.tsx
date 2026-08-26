@@ -4,12 +4,16 @@ export type PreviewRendererMode = "point" | "glyph" | "particle";
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
+in vec4 a_color;
 in float a_glyph;
 uniform float u_time;
 uniform float u_point_size;
 uniform int u_mode;
+uniform int u_use_source_color;
+uniform vec3 u_tint;
 flat out int v_glyph;
 out float v_phase;
+out vec4 v_color;
 void main() {
   float wave = sin(u_time * 1.4 + a_position.x * 8.0 + a_position.y * 5.0);
   float pulse = u_mode == 2 ? 0.024 * wave : 0.012 * wave;
@@ -19,20 +23,23 @@ void main() {
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
   v_phase = wave;
+  v_color = u_use_source_color == 1 ? a_color : vec4(u_tint, 1.0);
 }`;
 
 const pointFragmentShaderSource = `#version 300 es
 precision highp float;
+in vec4 v_color;
 out vec4 outColor;
 void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
   float alpha = smoothstep(0.5, 0.14, length(p));
-  outColor = vec4(0.72, 0.76, 1.0, alpha);
+  outColor = vec4(v_color.rgb, v_color.a * alpha);
 }`;
 
 const particleFragmentShaderSource = `#version 300 es
 precision highp float;
 in float v_phase;
+in vec4 v_color;
 out vec4 outColor;
 void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
@@ -41,13 +48,14 @@ void main() {
   float core = smoothstep(0.30, 0.0, d);
   float halo = smoothstep(0.5, 0.10, d) * 0.45;
   float energy = 0.86 + 0.14 * v_phase;
-  vec3 color = mix(vec3(0.42, 0.34, 1.0), vec3(0.88, 0.78, 1.0), core);
-  outColor = vec4(color * energy, min(1.0, core + halo));
+  vec3 highlight = mix(v_color.rgb * 0.72, min(vec3(1.0), v_color.rgb * 1.35 + 0.12), core);
+  outColor = vec4(highlight * energy, v_color.a * min(1.0, core + halo));
 }`;
 
 const glyphFragmentShaderSource = `#version 300 es
 precision highp float;
 flat in int v_glyph;
+in vec4 v_color;
 out vec4 outColor;
 
 float box(vec2 p, vec2 halfSize) {
@@ -68,7 +76,7 @@ void main() {
     ink = max(stem, max(cap, foot));
   }
   if (ink < 0.06) discard;
-  outColor = vec4(0.78, 0.76, 1.0, ink);
+  outColor = vec4(v_color.rgb, v_color.a * ink);
 }`;
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string) {
@@ -115,29 +123,51 @@ function buildFallbackField(count = 2200) {
   return points;
 }
 
+function buildFallbackColors(count: number) {
+  const colors = new Float32Array(count * 4);
+  for (let i = 0; i < count; i += 1) colors.set([0.72, 0.76, 1, 1], i * 4);
+  return colors;
+}
+
 function buildGlyphIndices(count: number) {
   const glyphs = new Float32Array(count);
   for (let i = 0; i < count; i += 1) glyphs[i] = i % 2;
   return glyphs;
 }
 
+function hexRgb(hex: string) {
+  const clean = hex.replace("#", "").padEnd(6, "0").slice(0, 6);
+  return [Number.parseInt(clean.slice(0, 2), 16) / 255, Number.parseInt(clean.slice(2, 4), 16) / 255, Number.parseInt(clean.slice(4, 6), 16) / 255] as const;
+}
+
 export function WebGLPreview({
   positions,
+  colors,
   mode = "point",
   elementSize = 1,
+  tint = "#c7c2ff",
+  background = "#090b10",
+  useSourceColor = false,
+  canvasRef: externalCanvasRef,
 }: {
   positions?: Float32Array;
+  colors?: Float32Array;
   mode?: PreviewRendererMode;
   elementSize?: number;
+  tint?: string;
+  background?: string;
+  useSourceColor?: boolean;
+  canvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const internalCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = externalCanvasRef ?? internalCanvasRef;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext("webgl2", { alpha: false, antialias: true });
+    const gl = canvas.getContext("webgl2", { alpha: false, antialias: true, preserveDrawingBuffer: true });
     if (!gl) {
       setError("WebGL2 is not available in this browser/device.");
       return;
@@ -154,6 +184,7 @@ export function WebGLPreview({
 
     const points = positions && positions.length >= 2 ? positions : buildFallbackField();
     const count = points.length / 2;
+    const sourceColors = colors && colors.length === count * 4 ? colors : buildFallbackColors(count);
     const glyphs = buildGlyphIndices(count);
 
     const positionBuffer = gl.createBuffer();
@@ -162,6 +193,15 @@ export function WebGLPreview({
     const position = gl.getAttribLocation(program, "a_position");
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sourceColors, gl.STATIC_DRAW);
+    const color = gl.getAttribLocation(program, "a_color");
+    if (color >= 0) {
+      gl.enableVertexAttribArray(color);
+      gl.vertexAttribPointer(color, 4, gl.FLOAT, false, 0, 0);
+    }
 
     const glyphBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, glyphBuffer);
@@ -175,6 +215,10 @@ export function WebGLPreview({
     const time = gl.getUniformLocation(program, "u_time");
     const pointSize = gl.getUniformLocation(program, "u_point_size");
     const modeUniform = gl.getUniformLocation(program, "u_mode");
+    const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
+    const tintUniform = gl.getUniformLocation(program, "u_tint");
+    const tintRgb = hexRgb(tint);
+    const bgRgb = hexRgb(background);
     gl.useProgram(program);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -189,11 +233,13 @@ export function WebGLPreview({
         canvas.height = height;
       }
       gl.viewport(0, 0, width, height);
-      gl.clearColor(0.035, 0.04, 0.055, 1);
+      gl.clearColor(bgRgb[0], bgRgb[1], bgRgb[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
       gl.uniform1f(time, now / 1000);
       gl.uniform1i(modeUniform, mode === "particle" ? 2 : mode === "glyph" ? 1 : 0);
+      gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
+      gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
       const baseSize = mode === "glyph" ? 8 : mode === "particle" ? 5.5 : 2.4;
       gl.uniform1f(pointSize, baseSize * Math.max(0.4, elementSize) * dpr);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -204,10 +250,11 @@ export function WebGLPreview({
     return () => {
       cancelAnimationFrame(frame);
       gl.deleteBuffer(positionBuffer);
+      gl.deleteBuffer(colorBuffer);
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [elementSize, mode, positions]);
+  }, [background, canvasRef, colors, elementSize, mode, positions, tint, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
