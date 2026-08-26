@@ -9,6 +9,7 @@ This repository is under active development. The current working codename is **G
 - [Product specification](docs/PRODUCT_SPEC.md)
 - [Development roadmap](docs/ROADMAP.md)
 - [Public architecture](docs/ARCHITECTURE.md)
+- [UI contract](docs/UI_CONTRACT.md)
 - [Agent instructions](AGENTS.md)
 
 ## Current development focus
