@@ -4,6 +4,12 @@ export type CanvasRecordingResult = {
   mimeType: string;
 };
 
+export type CanvasRecordingCapability = {
+  supported: boolean;
+  preferredMimeType?: string;
+  preferredExtension?: "webm" | "mp4";
+};
+
 const MIME_CANDIDATES = [
   { mimeType: "video/webm;codecs=vp9", extension: "webm" as const },
   { mimeType: "video/webm;codecs=vp8", extension: "webm" as const },
@@ -17,8 +23,19 @@ function pickMimeType() {
   return MIME_CANDIDATES.find(({ mimeType }) => MediaRecorder.isTypeSupported(mimeType));
 }
 
+export function getCanvasRecordingCapability(canvas?: HTMLCanvasElement | null): CanvasRecordingCapability {
+  const supported = Boolean(canvas && typeof canvas.captureStream === "function" && typeof MediaRecorder !== "undefined");
+  if (!supported) return { supported: false };
+  const format = pickMimeType();
+  return {
+    supported: true,
+    preferredMimeType: format?.mimeType,
+    preferredExtension: format?.extension,
+  };
+}
+
 export function canRecordCanvasAnimation(canvas?: HTMLCanvasElement | null) {
-  return Boolean(canvas && typeof canvas.captureStream === "function" && typeof MediaRecorder !== "undefined");
+  return getCanvasRecordingCapability(canvas).supported;
 }
 
 export async function recordCanvasAnimation({
@@ -33,12 +50,21 @@ export async function recordCanvasAnimation({
   onProgress: (progress: number) => void;
 }): Promise<CanvasRecordingResult> {
   if (!canRecordCanvasAnimation(canvas)) throw new Error("animation-export-unsupported");
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) throw new Error("animation-export-invalid-duration");
+  if (!Number.isFinite(frameRate) || frameRate <= 0) throw new Error("animation-export-invalid-frame-rate");
 
-  const stream = canvas.captureStream(frameRate);
+  const stream = canvas.captureStream(Math.min(60, Math.max(1, Math.round(frameRate))));
   const format = pickMimeType();
-  const recorder = format
-    ? new MediaRecorder(stream, { mimeType: format.mimeType, videoBitsPerSecond: 8_000_000 })
-    : new MediaRecorder(stream, { videoBitsPerSecond: 8_000_000 });
+  let recorder: MediaRecorder;
+  try {
+    recorder = format
+      ? new MediaRecorder(stream, { mimeType: format.mimeType, videoBitsPerSecond: 8_000_000 })
+      : new MediaRecorder(stream, { videoBitsPerSecond: 8_000_000 });
+  } catch {
+    stream.getTracks().forEach((track) => track.stop());
+    throw new Error("animation-export-unsupported");
+  }
+
   const chunks: BlobPart[] = [];
 
   const stopped = new Promise<CanvasRecordingResult>((resolve, reject) => {
@@ -49,7 +75,12 @@ export async function recordCanvasAnimation({
     recorder.onstop = () => {
       const mimeType = recorder.mimeType || format?.mimeType || "video/webm";
       const extension = mimeType.includes("mp4") ? "mp4" : "webm";
-      resolve({ blob: new Blob(chunks, { type: mimeType }), extension, mimeType });
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size === 0) {
+        reject(new Error("animation-export-empty"));
+        return;
+      }
+      resolve({ blob, extension, mimeType });
     };
   });
 
@@ -73,9 +104,13 @@ export async function recordCanvasAnimation({
       requestAnimationFrame(tick);
     });
 
+    if (recorder.state === "recording") recorder.requestData();
     recorder.stop();
-    return await stopped;
+    const result = await stopped;
+    onProgress(1);
+    return result;
   } finally {
+    if (recorder.state !== "inactive") recorder.stop();
     stream.getTracks().forEach((track) => track.stop());
   }
 }
