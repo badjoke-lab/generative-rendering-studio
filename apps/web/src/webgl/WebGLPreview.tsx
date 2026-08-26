@@ -1,22 +1,54 @@
 import { useEffect, useRef, useState } from "react";
 
+export type PreviewRendererMode = "point" | "glyph";
+
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
+in float a_glyph;
 uniform float u_time;
+uniform float u_point_size;
+flat out int v_glyph;
 void main() {
   float pulse = 0.012 * sin(u_time + a_position.x * 8.0 + a_position.y * 5.0);
   vec2 p = a_position * (0.94 + pulse);
   gl_Position = vec4(p, 0.0, 1.0);
-  gl_PointSize = 2.4;
+  gl_PointSize = u_point_size;
+  v_glyph = int(a_glyph + 0.5);
 }`;
 
-const fragmentShaderSource = `#version 300 es
+const pointFragmentShaderSource = `#version 300 es
 precision highp float;
 out vec4 outColor;
 void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
   float alpha = smoothstep(0.5, 0.14, length(p));
   outColor = vec4(0.72, 0.76, 1.0, alpha);
+}`;
+
+const glyphFragmentShaderSource = `#version 300 es
+precision highp float;
+flat in int v_glyph;
+out vec4 outColor;
+
+float box(vec2 p, vec2 halfSize) {
+  vec2 d = abs(p) - halfSize;
+  return 1.0 - smoothstep(0.0, 0.055, max(d.x, d.y));
+}
+
+void main() {
+  vec2 p = gl_PointCoord - vec2(0.5);
+  float ink;
+  if (v_glyph == 0) {
+    float ring = abs(length(p / vec2(0.62, 0.90)) - 0.39);
+    ink = 1.0 - smoothstep(0.035, 0.085, ring);
+  } else {
+    float stem = box(p - vec2(0.03, 0.0), vec2(0.075, 0.38));
+    float cap = box(p - vec2(-0.06, 0.31), vec2(0.12, 0.06));
+    float foot = box(p - vec2(0.0, -0.34), vec2(0.20, 0.06));
+    ink = max(stem, max(cap, foot));
+  }
+  if (ink < 0.06) discard;
+  outColor = vec4(0.78, 0.76, 1.0, ink);
 }`;
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string) {
@@ -32,9 +64,9 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
   return shader;
 }
 
-function createProgram(gl: WebGL2RenderingContext) {
+function createProgram(gl: WebGL2RenderingContext, fragmentSource: string) {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
   if (!program) throw new Error("Unable to allocate program");
   gl.attachShader(program, vertex);
@@ -63,7 +95,13 @@ function buildFallbackField(count = 2200) {
   return points;
 }
 
-export function WebGLPreview({ positions }: { positions?: Float32Array }) {
+function buildGlyphIndices(count: number) {
+  const glyphs = new Float32Array(count);
+  for (let i = 0; i < count; i += 1) glyphs[i] = i % 2;
+  return glyphs;
+}
+
+export function WebGLPreview({ positions, mode = "point" }: { positions?: Float32Array; mode?: PreviewRendererMode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,22 +117,35 @@ export function WebGLPreview({ positions }: { positions?: Float32Array }) {
 
     let program: WebGLProgram;
     try {
-      program = createProgram(gl);
+      program = createProgram(gl, mode === "glyph" ? glyphFragmentShaderSource : pointFragmentShaderSource);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "WebGL initialization failed");
       return;
     }
 
     const points = positions && positions.length >= 2 ? positions : buildFallbackField();
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
+    const count = points.length / 2;
+    const glyphs = buildGlyphIndices(count);
 
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
     const position = gl.getAttribLocation(program, "a_position");
-    const time = gl.getUniformLocation(program, "u_time");
-    gl.useProgram(program);
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const glyphBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, glyphBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, glyphs, gl.STATIC_DRAW);
+    const glyph = gl.getAttribLocation(program, "a_glyph");
+    if (glyph >= 0) {
+      gl.enableVertexAttribArray(glyph);
+      gl.vertexAttribPointer(glyph, 1, gl.FLOAT, false, 0, 0);
+    }
+
+    const time = gl.getUniformLocation(program, "u_time");
+    const pointSize = gl.getUniformLocation(program, "u_point_size");
+    gl.useProgram(program);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -112,17 +163,19 @@ export function WebGLPreview({ positions }: { positions?: Float32Array }) {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
       gl.uniform1f(time, now / 1000);
-      gl.drawArrays(gl.POINTS, 0, points.length / 2);
+      gl.uniform1f(pointSize, (mode === "glyph" ? 8 : 2.4) * dpr);
+      gl.drawArrays(gl.POINTS, 0, count);
       frame = requestAnimationFrame(render);
     };
 
     frame = requestAnimationFrame(render);
     return () => {
       cancelAnimationFrame(frame);
-      gl.deleteBuffer(buffer);
+      gl.deleteBuffer(positionBuffer);
+      gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [positions]);
+  }, [mode, positions]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
