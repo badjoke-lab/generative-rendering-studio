@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { brand } from "@grs/brand";
 import { createEmptyProject, pointFieldToFloat32, sampleRasterToPointField, type RasterPixels } from "@grs/core";
 import { OriginalPreview } from "./canvas/OriginalPreview";
-import { WebGLPreview, type PreviewRendererMode } from "./webgl/WebGLPreview";
+import { WebGLPreview, type GlyphPreset, type PreviewRendererMode } from "./webgl/WebGLPreview";
 import "./styles.css";
 
 const project = createEmptyProject(1);
@@ -70,6 +70,7 @@ function App() {
   const [colors, setColors] = useState<Float32Array>();
   const [pointCount, setPointCount] = useState(0);
   const [rendererMode, setRendererMode] = useState<StudioRendererMode>("point");
+  const [glyphPreset, setGlyphPreset] = useState<GlyphPreset>("binary");
   const [elementSize, setElementSize] = useState(1);
   const [density, setDensity] = useState(62);
   const [edgeWeight, setEdgeWeight] = useState(45);
@@ -150,7 +151,7 @@ function App() {
       <section className="canvas-column">
         <div className="canvas-toolbar"><div className="tool-group"><button>✋</button><button>⌖</button><button>△</button><button>↻</button></div><div className="tool-group compact"><button>3D</button><button>▦</button></div><div className="view-actions"><button>Fit</button><button>1:1</button><button>Full</button></div></div>
         <section className="preview-frame"><div className="canvas-meta"><span>Preview</span><span>{rendererMode === "original" ? "Original source" : pointCount ? `${pointCount.toLocaleString()} elements` : "fallback"}</span><span className="timecode">00:00:00.00</span></div>
-          {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={positions} colors={colors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} />}
+          {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={positions} colors={colors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />}
           <div className="canvas-status"><span>▲ Camera: Main</span><span>● {activeModeLabel} Mode</span><span>○ {rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
         <div className="transport-bar"><button>▶</button><button>■</button><button>|◀</button><button>▶|</button><div className="transport-time">Stage 1 source preview</div><input aria-label="Timeline position" type="range" min="0" max="100" defaultValue="0" disabled /><button>🔊</button><button>⛶</button></div>
       </section>
@@ -162,6 +163,7 @@ function App() {
           return <button className={rendererMode === value ? "active" : ""} key={mode} onClick={() => setRendererMode(value)}>{mode}</button>;
         })}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} 設定</h2><label>入力<code>{sourceLabel}</code></label>
+          {rendererMode === "glyph" && <label>文字セット<select value={glyphPreset} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
           {rendererMode !== "original" && <><label>密度<div className="range-row"><input type="range" min="5" max="100" value={density} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>サイズ<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>エッジ強調<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>Dither<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>描画色<div className="color-row"><input type="color" value={tint} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>Source color</span><button className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
           <label>背景<div className="color-row"><input type="color" value={background} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
