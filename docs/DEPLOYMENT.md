@@ -4,10 +4,12 @@ The browser application is the primary product. Deployment must publish the same
 
 ## Build contract
 
+The repository does not currently contain a `pnpm-lock.yaml`, so installs cannot use frozen-lockfile mode yet. Until a lockfile is deliberately generated, reviewed, and committed, the reproducible release contract is tied to the exact tested commit, declared package versions, Node/pnpm versions, and CI-produced artifact rather than to a frozen lockfile.
+
 From the repository root:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm build
@@ -19,9 +21,11 @@ The production web bundle is emitted by Vite under:
 apps/web/dist
 ```
 
-A hosting provider should therefore use the repository root as the working directory, run `pnpm build`, and publish `apps/web/dist` as a static site.
+A hosting provider should therefore use the repository root as the working directory, use the repository-declared pnpm version, install with `--no-frozen-lockfile` until a lockfile exists, run `pnpm build`, and publish `apps/web/dist` as a static site.
 
-Repository CI uses the same frozen-lockfile install contract and uploads the resulting `apps/web/dist` directory as a commit-addressed artifact named `browser-candidate-<commit-sha>`. The artifact is the preferred manual-smoke candidate because it is produced in the same run that performs typecheck, tests, and production build.
+Repository CI uses the same install contract and uploads the resulting `apps/web/dist` directory as a commit-addressed artifact named `browser-candidate-<commit-sha>`. The artifact is the preferred manual-smoke candidate because it is produced in the same run that performs typecheck, tests, and production build.
+
+Adding a committed lockfile is a separate dependency-management improvement. When it is introduced, CI and this document must move to `pnpm install --frozen-lockfile` in the same change.
 
 ## Hosting requirements
 
@@ -42,7 +46,7 @@ Provider-specific settings are deployment details. They must not be encoded into
 A compatible Cloudflare Pages project can use:
 
 - production branch: `main`;
-- build command: `pnpm build`;
+- build command: `pnpm install --no-frozen-lockfile && pnpm build` while no lockfile is committed;
 - build output directory: `apps/web/dist`;
 - package manager: the repository-declared pnpm version.
 
@@ -54,7 +58,7 @@ A codename-based preview hostname may be used before final branding is selected.
 2. use the commit-addressed `browser-candidate-<commit-sha>` artifact from that green CI run as the exact manual-smoke candidate;
 3. serve that static artifact over HTTP/HTTPS without modifying its contents and perform the real-browser checks in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`;
 4. publish only after the critical manual checks pass;
-5. ensure the deployed build is produced from the same tested commit and build contract;
+5. ensure the deployed build is produced from the same tested commit and dependency-install contract;
 6. if the deployed build or dependency resolution differs from the smoke-tested candidate, repeat the affected checks.
 
 ## Development Preview scope
