@@ -26,6 +26,10 @@ Video import, procedural sources, full Layers/Timeline/Keyframes, audio/data mod
 - [x] Web build passes in repository CI.
 - [x] English and Japanese locale resources remain structurally synchronized.
 - [x] Stage 2 animation export code rejects unsupported recording environments and invalid/empty recordings.
+- [ ] Real Chromium smoke tests pass against the production build in repository CI.
+- [ ] Chromium smoke covers PNG/SVG import, Text creation, English/Japanese locale persistence, Original/Glyph/Point/Particle selection, Source A/B Morph controls, still download, short animation recording when supported, and narrow viewport survival.
+
+The real-browser CI uses Playwright with the production Vite build. Failure traces/screenshots are retained as CI artifacts so a browser regression is inspectable rather than reduced to a manual claim.
 
 ## Studio behavior gates
 
@@ -42,23 +46,20 @@ Video import, procedural sources, full Layers/Timeline/Keyframes, audio/data mod
 - [x] Source, renderer, appearance, Morph, transport and still-export mutation controls are locked during animation recording.
 - [x] Animation export reports success/failure and leaves the preview on the final Morph frame after a successful recording.
 
-## Manual browser verification required before public deployment
+## Remaining release-candidate verification
 
-These checks require a real supported browser/device and are not satisfied by repository CI alone:
+Repository CI should perform the deterministic and repeatable Chromium path. The following checks still benefit from human observation on the exact candidate intended for public deployment:
 
-- [ ] Import at least one PNG/JPEG/WebP and one SVG in a Chromium-based desktop browser.
-- [ ] Confirm Text source creation and Japanese UI rendering.
-- [ ] Verify Original/Glyph/Point/Particle visual output with no blank or corrupted canvas.
-- [ ] Verify Source A -> Source B Morph visually reaches both endpoints and does not visibly reset correspondence during playback.
-- [ ] Verify PNG and WebP still downloads open correctly.
-- [ ] Verify one short Morph animation recording downloads, opens, has non-zero duration and shows the full A-to-B transition.
-- [ ] Confirm controls remain locked during recording and recover afterward.
-- [ ] Confirm a failed/unsupported recording path leaves the editor usable.
-- [ ] Repeat the critical import/Morph/export smoke path in at least one second browser family where practical.
-- [ ] Check narrow viewport behavior for catastrophic layout breakage even though full mobile authoring is not yet promised.
+- [ ] Visually confirm Original/Glyph/Point/Particle output has no blank, corrupted, or obviously unstable canvas.
+- [ ] Visually confirm Source A -> Source B Morph reaches both endpoints without an obvious correspondence reset during playback.
+- [ ] Open downloaded PNG/WebP files and confirm they decode correctly.
+- [ ] Open one downloaded short Morph animation, when recording is supported, and confirm non-zero duration and the complete A-to-B transition.
+- [ ] Confirm recording-time control lock/recovery feels correct in the browser rather than only being DOM-disabled.
+- [ ] Repeat the critical import/Morph/export path in a second browser family where practical.
+- [ ] Visually inspect a narrow viewport for catastrophic overlap or inaccessible controls; full mobile authoring is not yet promised.
 
 ## Deployment gate
 
-The Development Preview may be deployed only after the automated gates are green and the critical manual browser checks above have been performed on the build intended for deployment.
+The Development Preview may be deployed only after repository CI, including the real Chromium smoke suite, is green and the critical visual/output checks above have been performed on the candidate intended for deployment.
 
 Deployment remains browser-first and provider-independent. A hosting provider or preview URL is not part of the project file format or rendering-core contract.

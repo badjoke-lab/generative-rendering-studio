@@ -18,6 +18,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Install Chromium for browser smoke
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run Development Preview browser smoke
+        run: pnpm test:browser
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics-${{ github.sha }}
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload browser candidate
         uses: actions/upload-artifact@v4
         with:

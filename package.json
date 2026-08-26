@@ -7,9 +7,11 @@
     "dev": "pnpm --filter @grs/web dev",
     "build": "pnpm --filter @grs/web build",
     "test": "vitest run",
+    "test:browser": "playwright test",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }
