@@ -5,10 +5,13 @@ export type GlyphPreset = "binary" | "density" | "symbols";
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
+in vec2 a_target_position;
 in vec4 a_color;
+in vec4 a_target_color;
 in float a_glyph;
 uniform float u_time;
 uniform float u_point_size;
+uniform float u_morph_progress;
 uniform int u_mode;
 uniform int u_use_source_color;
 uniform vec3 u_tint;
@@ -16,15 +19,18 @@ flat out int v_glyph;
 out float v_phase;
 out vec4 v_color;
 void main() {
-  float wave = sin(u_time * 1.4 + a_position.x * 8.0 + a_position.y * 5.0);
+  float morph = clamp(u_morph_progress, 0.0, 1.0);
+  vec2 sourcePosition = mix(a_position, a_target_position, morph);
+  vec4 sourceColor = mix(a_color, a_target_color, morph);
+  float wave = sin(u_time * 1.4 + sourcePosition.x * 8.0 + sourcePosition.y * 5.0);
   float pulse = u_mode == 2 ? 0.024 * wave : 0.012 * wave;
-  vec2 drift = u_mode == 2 ? vec2(cos(u_time + a_position.y * 9.0), sin(u_time * 0.8 + a_position.x * 7.0)) * 0.005 : vec2(0.0);
-  vec2 p = a_position * (0.94 + pulse) + drift;
+  vec2 drift = u_mode == 2 ? vec2(cos(u_time + sourcePosition.y * 9.0), sin(u_time * 0.8 + sourcePosition.x * 7.0)) * 0.005 : vec2(0.0);
+  vec2 p = sourcePosition * (0.94 + pulse) + drift;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
   v_phase = wave;
-  v_color = u_use_source_color == 1 ? a_color : vec4(u_tint, 1.0);
+  v_color = u_use_source_color == 1 ? sourceColor : vec4(u_tint, 1.0);
 }`;
 
 const pointFragmentShaderSource = `#version 300 es
@@ -174,9 +180,30 @@ function hexRgb(hex: string) {
   return [Number.parseInt(clean.slice(0, 2), 16) / 255, Number.parseInt(clean.slice(2, 4), 16) / 255, Number.parseInt(clean.slice(4, 6), 16) / 255] as const;
 }
 
+function bindFloatBuffer(
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram,
+  name: string,
+  data: Float32Array,
+  size: number,
+) {
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  const location = gl.getAttribLocation(program, name);
+  if (location >= 0) {
+    gl.enableVertexAttribArray(location);
+    gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+  }
+  return buffer;
+}
+
 export function WebGLPreview({
   positions,
   colors,
+  targetPositions,
+  targetColors,
+  morphProgress = 0,
   mode = "point",
   elementSize = 1,
   tint = "#c7c2ff",
@@ -187,6 +214,9 @@ export function WebGLPreview({
 }: {
   positions?: Float32Array;
   colors?: Float32Array;
+  targetPositions?: Float32Array;
+  targetColors?: Float32Array;
+  morphProgress?: number;
   mode?: PreviewRendererMode;
   elementSize?: number;
   tint?: string;
@@ -197,6 +227,8 @@ export function WebGLPreview({
 }) {
   const internalCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = externalCanvasRef ?? internalCanvasRef;
+  const morphProgressRef = useRef(morphProgress);
+  morphProgressRef.current = morphProgress;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -220,35 +252,19 @@ export function WebGLPreview({
     const points = positions && positions.length >= 2 ? positions : buildFallbackField();
     const count = points.length / 2;
     const sourceColors = colors && colors.length === count * 4 ? colors : buildFallbackColors(count);
+    const targetPoints = targetPositions && targetPositions.length === points.length ? targetPositions : points;
+    const targetSourceColors = targetColors && targetColors.length === sourceColors.length ? targetColors : sourceColors;
     const glyphs = buildGlyphIndices(count, sourceColors, glyphPreset);
 
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
-    const position = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-
-    const colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, sourceColors, gl.STATIC_DRAW);
-    const color = gl.getAttribLocation(program, "a_color");
-    if (color >= 0) {
-      gl.enableVertexAttribArray(color);
-      gl.vertexAttribPointer(color, 4, gl.FLOAT, false, 0, 0);
-    }
-
-    const glyphBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, glyphBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, glyphs, gl.STATIC_DRAW);
-    const glyph = gl.getAttribLocation(program, "a_glyph");
-    if (glyph >= 0) {
-      gl.enableVertexAttribArray(glyph);
-      gl.vertexAttribPointer(glyph, 1, gl.FLOAT, false, 0, 0);
-    }
+    const positionBuffer = bindFloatBuffer(gl, program, "a_position", points, 2);
+    const targetPositionBuffer = bindFloatBuffer(gl, program, "a_target_position", targetPoints, 2);
+    const colorBuffer = bindFloatBuffer(gl, program, "a_color", sourceColors, 4);
+    const targetColorBuffer = bindFloatBuffer(gl, program, "a_target_color", targetSourceColors, 4);
+    const glyphBuffer = bindFloatBuffer(gl, program, "a_glyph", glyphs, 1);
 
     const time = gl.getUniformLocation(program, "u_time");
     const pointSize = gl.getUniformLocation(program, "u_point_size");
+    const morph = gl.getUniformLocation(program, "u_morph_progress");
     const modeUniform = gl.getUniformLocation(program, "u_mode");
     const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
     const tintUniform = gl.getUniformLocation(program, "u_tint");
@@ -272,6 +288,7 @@ export function WebGLPreview({
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
       gl.uniform1f(time, now / 1000);
+      gl.uniform1f(morph, Math.min(1, Math.max(0, morphProgressRef.current)));
       gl.uniform1i(modeUniform, mode === "particle" ? 2 : mode === "glyph" ? 1 : 0);
       gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
       gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
@@ -285,11 +302,13 @@ export function WebGLPreview({
     return () => {
       cancelAnimationFrame(frame);
       gl.deleteBuffer(positionBuffer);
+      gl.deleteBuffer(targetPositionBuffer);
       gl.deleteBuffer(colorBuffer);
+      gl.deleteBuffer(targetColorBuffer);
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, tint, useSourceColor]);
+  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, targetColors, targetPositions, tint, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
