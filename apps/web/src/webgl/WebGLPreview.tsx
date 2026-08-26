@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 
-export type PreviewRendererMode = "point" | "glyph";
+export type PreviewRendererMode = "point" | "glyph" | "particle";
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
 in float a_glyph;
 uniform float u_time;
 uniform float u_point_size;
+uniform int u_mode;
 flat out int v_glyph;
+out float v_phase;
 void main() {
-  float pulse = 0.012 * sin(u_time + a_position.x * 8.0 + a_position.y * 5.0);
-  vec2 p = a_position * (0.94 + pulse);
+  float wave = sin(u_time * 1.4 + a_position.x * 8.0 + a_position.y * 5.0);
+  float pulse = u_mode == 2 ? 0.024 * wave : 0.012 * wave;
+  vec2 drift = u_mode == 2 ? vec2(cos(u_time + a_position.y * 9.0), sin(u_time * 0.8 + a_position.x * 7.0)) * 0.005 : vec2(0.0);
+  vec2 p = a_position * (0.94 + pulse) + drift;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
+  v_phase = wave;
 }`;
 
 const pointFragmentShaderSource = `#version 300 es
@@ -23,6 +28,21 @@ void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
   float alpha = smoothstep(0.5, 0.14, length(p));
   outColor = vec4(0.72, 0.76, 1.0, alpha);
+}`;
+
+const particleFragmentShaderSource = `#version 300 es
+precision highp float;
+in float v_phase;
+out vec4 outColor;
+void main() {
+  vec2 p = gl_PointCoord - vec2(0.5);
+  float d = length(p);
+  if (d > 0.5) discard;
+  float core = smoothstep(0.30, 0.0, d);
+  float halo = smoothstep(0.5, 0.10, d) * 0.45;
+  float energy = 0.86 + 0.14 * v_phase;
+  vec3 color = mix(vec3(0.42, 0.34, 1.0), vec3(0.88, 0.78, 1.0), core);
+  outColor = vec4(color * energy, min(1.0, core + halo));
 }`;
 
 const glyphFragmentShaderSource = `#version 300 es
@@ -101,7 +121,15 @@ function buildGlyphIndices(count: number) {
   return glyphs;
 }
 
-export function WebGLPreview({ positions, mode = "point" }: { positions?: Float32Array; mode?: PreviewRendererMode }) {
+export function WebGLPreview({
+  positions,
+  mode = "point",
+  elementSize = 1,
+}: {
+  positions?: Float32Array;
+  mode?: PreviewRendererMode;
+  elementSize?: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,9 +143,10 @@ export function WebGLPreview({ positions, mode = "point" }: { positions?: Float3
       return;
     }
 
+    const fragmentSource = mode === "glyph" ? glyphFragmentShaderSource : mode === "particle" ? particleFragmentShaderSource : pointFragmentShaderSource;
     let program: WebGLProgram;
     try {
-      program = createProgram(gl, mode === "glyph" ? glyphFragmentShaderSource : pointFragmentShaderSource);
+      program = createProgram(gl, fragmentSource);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "WebGL initialization failed");
       return;
@@ -145,6 +174,7 @@ export function WebGLPreview({ positions, mode = "point" }: { positions?: Float3
 
     const time = gl.getUniformLocation(program, "u_time");
     const pointSize = gl.getUniformLocation(program, "u_point_size");
+    const modeUniform = gl.getUniformLocation(program, "u_mode");
     gl.useProgram(program);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -163,7 +193,9 @@ export function WebGLPreview({ positions, mode = "point" }: { positions?: Float3
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
       gl.uniform1f(time, now / 1000);
-      gl.uniform1f(pointSize, (mode === "glyph" ? 8 : 2.4) * dpr);
+      gl.uniform1i(modeUniform, mode === "particle" ? 2 : mode === "glyph" ? 1 : 0);
+      const baseSize = mode === "glyph" ? 8 : mode === "particle" ? 5.5 : 2.4;
+      gl.uniform1f(pointSize, baseSize * Math.max(0.4, elementSize) * dpr);
       gl.drawArrays(gl.POINTS, 0, count);
       frame = requestAnimationFrame(render);
     };
@@ -175,7 +207,7 @@ export function WebGLPreview({ positions, mode = "point" }: { positions?: Float3
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [mode, positions]);
+  }, [elementSize, mode, positions]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
