@@ -4,10 +4,10 @@ const vertexShaderSource = `#version 300 es
 in vec2 a_position;
 uniform float u_time;
 void main() {
-  float pulse = 0.035 * sin(u_time + a_position.x * 8.0 + a_position.y * 5.0);
-  vec2 p = a_position * (0.88 + pulse);
+  float pulse = 0.012 * sin(u_time + a_position.x * 8.0 + a_position.y * 5.0);
+  vec2 p = a_position * (0.94 + pulse);
   gl_Position = vec4(p, 0.0, 1.0);
-  gl_PointSize = 3.0;
+  gl_PointSize = 2.4;
 }`;
 
 const fragmentShaderSource = `#version 300 es
@@ -15,7 +15,7 @@ precision highp float;
 out vec4 outColor;
 void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
-  float alpha = smoothstep(0.5, 0.18, length(p));
+  float alpha = smoothstep(0.5, 0.14, length(p));
   outColor = vec4(0.72, 0.76, 1.0, alpha);
 }`;
 
@@ -50,7 +50,7 @@ function createProgram(gl: WebGL2RenderingContext) {
   return program;
 }
 
-function buildField(count = 2200) {
+function buildFallbackField(count = 2200) {
   const points = new Float32Array(count * 2);
   const golden = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < count; i += 1) {
@@ -63,7 +63,7 @@ function buildField(count = 2200) {
   return points;
 }
 
-export function WebGLPreview() {
+export function WebGLPreview({ positions }: { positions?: Float32Array }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +85,7 @@ export function WebGLPreview() {
       return;
     }
 
-    const points = buildField();
+    const points = positions && positions.length >= 2 ? positions : buildFallbackField();
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
@@ -122,7 +122,7 @@ export function WebGLPreview() {
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, []);
+  }, [positions]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
