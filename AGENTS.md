@@ -40,6 +40,20 @@ In particular:
 - keep UI locale and translated strings out of persistent project schemas, migrations, and renderer/source identifiers;
 - do not replace WebGL2 baseline support with a WebGPU-only implementation unless repository policy changes explicitly.
 
+## Product-form and release-order rule
+
+The browser application is the primary product. Do not split development into independent browser and desktop rendering engines or independent project formats.
+
+Follow the current `docs/ROADMAP.md` release order:
+
+`shared core -> browser application -> progressive browser releases -> PWA after web stabilization -> optional desktop wrapper only for demonstrated browser limitations`
+
+- Browser functionality must not be delayed merely to maintain parity with a desktop build that may never be necessary.
+- Any future desktop/standalone wrapper must reuse the same project model and rendering core.
+- Desktop-specific work must be justified by measured browser limitations such as long-duration, large-media, memory, codec/container, or high-resolution export constraints.
+- Treat the browser release milestones in `docs/ROADMAP.md` as the public capability sequence unless that document is deliberately updated first.
+- Hosting/provider choices are deployment details, not persistent project or rendering-core contracts.
+
 ## User-experience rule
 
 Internal concepts may be complex, but the default user workflow should remain simple. Avoid exposing low-level implementation terminology when a user-facing concept such as Source, Look, Motion, React, Layers or Export is sufficient.
