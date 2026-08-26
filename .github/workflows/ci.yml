@@ -14,7 +14,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Upload browser candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-candidate-${{ github.sha }}
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 14
