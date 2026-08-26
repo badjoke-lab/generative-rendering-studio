@@ -73,12 +73,6 @@ function downloadCanvas(canvas: HTMLCanvasElement, type: "image/png" | "image/we
   }, type, type === "image/webp" ? 0.95 : undefined);
 }
 
-function interpolateBuffers(from: Float32Array, to: Float32Array, t: number) {
-  const out = new Float32Array(Math.min(from.length, to.length));
-  for (let i = 0; i < out.length; i += 1) out[i] = from[i] + (to[i] - from[i]) * t;
-  return out;
-}
-
 function App() {
   const { locale, setLocale, t } = useLocale();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -145,15 +139,10 @@ function App() {
   }, [field, morphField]);
 
   const easedProgress = applyMorphEasing(morphProgress, morphEasing);
-  const renderBuffers = useMemo(() => {
-    if (!morphEnabled || !morphPacked) return basePacked;
-    return {
-      positions: interpolateBuffers(morphPacked.fromPositions, morphPacked.toPositions, easedProgress),
-      colors: interpolateBuffers(morphPacked.fromColors, morphPacked.toColors, easedProgress),
-    };
-  }, [basePacked, easedProgress, morphEnabled, morphPacked]);
-
-  const pointCount = renderBuffers ? renderBuffers.positions.length / 2 : 0;
+  const activeMorph = morphEnabled && morphPacked ? morphPacked : undefined;
+  const previewPositions = activeMorph?.fromPositions ?? basePacked?.positions;
+  const previewColors = activeMorph?.fromColors ?? basePacked?.colors;
+  const pointCount = previewPositions ? previewPositions.length / 2 : 0;
 
   useEffect(() => {
     if (!morphPlaying || !morphEnabled || !morphPacked) return;
@@ -237,7 +226,7 @@ function App() {
       <section className="canvas-column">
         <div className="canvas-toolbar"><div className="tool-group"><button>✋</button><button>⌖</button><button>△</button><button>↻</button></div><div className="tool-group compact"><button>3D</button><button>▦</button></div><div className="view-actions"><button>{t("view.fit")}</button><button>1:1</button><button>{t("view.full")}</button></div></div>
         <section className="preview-frame"><div className="canvas-meta"><span>{t("preview.title")}</span><span>{rendererMode === "original" ? t("preview.originalSource") : pointCount ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : t("preview.fallback")}</span><span className="timecode">{morphEnabled ? `${Math.round(morphProgress * 100)}%` : "00:00:00.00"}</span></div>
-          {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={renderBuffers?.positions} colors={renderBuffers?.colors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />}
+          {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />}
           <div className="canvas-status"><span>▲ {t("preview.cameraMain")}</span><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>○ {rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
         <div className="transport-bar"><button onClick={() => { if (canMorph) { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying(true); } }}>▶</button><button onClick={() => setMorphPlaying(false)}>■</button><button onClick={() => { setMorphPlaying(false); setMorphProgress(0); }}>|◀</button><button onClick={() => { setMorphPlaying(false); setMorphProgress(1); }}>▶|</button><div className="transport-time">{morphEnabled ? t("preview.morph") : t("preview.stage1")}</div><input aria-label={t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={!canMorph} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><button>🔊</button><button>⛶</button></div>
       </section>
