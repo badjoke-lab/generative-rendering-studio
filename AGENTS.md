@@ -10,7 +10,8 @@ Read these public repository documents in this order:
 2. `docs/PRODUCT_SPEC.md`
 3. `docs/ROADMAP.md`
 4. `docs/ARCHITECTURE.md`
-5. the relevant source files and tests for the area being changed
+5. `docs/UI_CONTRACT.md`
+6. the relevant source files and tests for the area being changed
 
 Repository issues and merged code may refine the current implementation state. Do not assume a planned roadmap item is already implemented.
 
@@ -40,10 +41,12 @@ In particular:
 
 Internal concepts may be complex, but the default user workflow should remain simple. Avoid exposing low-level implementation terminology when a user-facing concept such as Source, Look, Motion, React, Layers or Export is sufficient.
 
+The approved UI direction and interaction contract are defined in `docs/UI_CONTRACT.md`. Do not invent a materially different application shell, navigation model, inspector structure, or workflow without first updating that contract deliberately.
+
 ## Development discipline
 
 - Make changes against the current repository state, not chat memory.
-- Re-read the relevant public spec/roadmap/architecture before starting a materially new feature.
+- Re-read the relevant public spec/roadmap/architecture/UI contract before starting a materially new feature.
 - Update public docs when shipped public behavior changes.
 - Keep planned and shipped behavior clearly distinguished.
 - Add or update tests for deterministic sampling, project serialization, renderer contracts and other affected behavior where applicable.
@@ -52,6 +55,8 @@ Internal concepts may be complex, but the default user workflow should remain si
 ## Roadmap discipline
 
 Implement the current stage without prematurely coupling later-stage features into it. Shared interfaces may prepare for later stages, but unused complexity should not be added only because a later feature is listed in the roadmap.
+
+UI for later roadmap stages may be represented in design documentation, but controls in the working application must not appear functional before their underlying behavior exists.
 
 ## Naming
 
