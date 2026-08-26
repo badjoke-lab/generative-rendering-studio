@@ -52,3 +52,4 @@ export function createEmptyProject(seed = 1): ProjectDocument {
 }
 
 export * from "./sampling";
+export * from "./morph";

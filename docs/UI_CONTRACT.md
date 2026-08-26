@@ -13,6 +13,34 @@ This document defines the public UI structure that implementation work should fo
 
 The working codename `GRS` may appear in development UI, but all branding must remain replaceable through the brand package.
 
+## Language and localization contract
+
+The application is bilingual from the public UI layer onward.
+
+Initial supported UI languages:
+- English (`en`);
+- Japanese (`ja`).
+
+Behavior:
+- on first use, the application may use browser language detection;
+- Japanese is selected when the browser preference resolves to Japanese;
+- English is the fallback for other or unsupported locales;
+- users must be able to switch language explicitly from the application UI;
+- the explicit user selection is persisted locally and takes precedence over later browser-language detection;
+- switching language must not change project content, renderer identifiers, source identifiers, schema values, or saved project compatibility.
+
+Implementation rules:
+- user-facing interface strings must not be scattered as literal text through feature components;
+- UI strings are referenced through stable translation keys and maintained in locale resources;
+- English is the reference locale for translation-key coverage, but English wording is not used as a persistent internal identifier when a brand-neutral technical identifier is more appropriate;
+- Japanese and English locale resources must remain structurally in sync for shipped controls;
+- missing Japanese translations must fall back safely to English rather than rendering an empty control;
+- project/user-authored text is never automatically translated by the UI localization system;
+- renderer names such as Original, Glyph, Point, and Particle may remain stable product terminology across locales, while descriptions, help text, control labels, errors, and surrounding UI are localized;
+- no roadmap stage may introduce new visible UI strings without adding them to the localization layer in the same change.
+
+The localization system should stay lightweight while only `en` and `ja` are required. A more extensive i18n framework may be adopted later if pluralization, many locales, external translation workflows, or other requirements justify it.
+
 ## Screen 1 — Dashboard / Home
 
 The dashboard is the default entry surface.
@@ -23,7 +51,8 @@ Required regions:
 - quick-start entry points for image, text, and procedural/generative sources where implemented;
 - recent-project cards with thumbnail, title, basic format metadata, and recency;
 - optional tutorial/help entry points;
-- drag-and-drop entry when the browser supports the corresponding source type.
+- drag-and-drop entry when the browser supports the corresponding source type;
+- access to the current UI-language control without requiring a project to be open.
 
 The dashboard must not imply cloud upload or account-dependent rendering unless that behavior is actually implemented.
 
@@ -37,7 +66,7 @@ The editor exposes the conceptual modes:
 - Timeline
 - Export
 
-These may initially share one application route and progressively reveal functionality as roadmap stages ship.
+These may initially share one application route and progressively reveal functionality as roadmap stages ship. Display labels are localized even when their internal route/action identifiers remain stable.
 
 ### Left rail
 The left side contains source/assets and scene/layer context.
@@ -126,6 +155,8 @@ Animation/video users can progressively enter Motion and Timeline functionality.
 
 Audio-reactive behavior must be optional and must never be required to create a visual.
 
+Language selection is an interface preference, not a project operation. Changing it must not alter or invalidate the active project.
+
 ## Responsive behavior
 
 Desktop/laptop is the primary authoring target for the full studio.
@@ -145,6 +176,8 @@ Stage 0 may implement only the shell, canvas, brand isolation, and basic preview
 
 Stage 1 activates image/SVG/text sources and Original/Glyph/Point/Particle controls.
 
+Localization baseline is required before additional Stage 2 UI expands the amount of visible interface text: English/Japanese resources, locale detection, persisted language selection, and removal of mixed hard-coded UI strings.
+
 Stage 2 activates morph-related UI.
 
 Stage 3 activates video-source and temporal-transformation UI.
@@ -157,6 +190,8 @@ Stage 6 activates audio/data modulation UI.
 
 Stage 7 hardens export and may expose desktop-specific export options.
 
+Every activated roadmap UI must ship with both English and Japanese interface coverage.
+
 ## Acceptance rule
 
-A feature is not complete merely because the backend or renderer exists. The corresponding user path must be understandable in this UI structure, visually stable, and consistent with the approved design language.
+A feature is not complete merely because the backend or renderer exists. The corresponding user path must be understandable in this UI structure, visually stable, localized for the currently supported UI languages, and consistent with the approved design language.

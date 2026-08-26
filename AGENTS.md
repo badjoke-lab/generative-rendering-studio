@@ -13,6 +13,8 @@ Read these public repository documents in this order:
 5. `docs/UI_CONTRACT.md`
 6. the relevant source files and tests for the area being changed
 
+Always read the current version from the branch being changed. Do not rely on an earlier copy from chat, a previous task, or a prior commit when the repository document has changed.
+
 Repository issues and merged code may refine the current implementation state. Do not assume a planned roadmap item is already implemented.
 
 ## Public-repository boundary
@@ -35,21 +37,50 @@ In particular:
 - keep imported media usable in its original form;
 - keep browser-first behavior as the baseline;
 - keep brand/product naming out of persistent core schemas and renderer/source identifiers;
+- keep UI locale and translated strings out of persistent project schemas, migrations, and renderer/source identifiers;
 - do not replace WebGL2 baseline support with a WebGPU-only implementation unless repository policy changes explicitly.
+
+## Product-form and release-order rule
+
+The browser application is the primary product. Do not split development into independent browser and desktop rendering engines or independent project formats.
+
+Follow the current `docs/ROADMAP.md` release order:
+
+`shared core -> browser application -> progressive browser releases -> PWA after web stabilization -> optional desktop wrapper only for demonstrated browser limitations`
+
+- Browser functionality must not be delayed merely to maintain parity with a desktop build that may never be necessary.
+- Any future desktop/standalone wrapper must reuse the same project model and rendering core.
+- Desktop-specific work must be justified by measured browser limitations such as long-duration, large-media, memory, codec/container, or high-resolution export constraints.
+- Treat the browser release milestones in `docs/ROADMAP.md` as the public capability sequence unless that document is deliberately updated first.
+- Hosting/provider choices are deployment details, not persistent project or rendering-core contracts.
 
 ## User-experience rule
 
 Internal concepts may be complex, but the default user workflow should remain simple. Avoid exposing low-level implementation terminology when a user-facing concept such as Source, Look, Motion, React, Layers or Export is sufficient.
 
-The approved UI direction and interaction contract are defined in `docs/UI_CONTRACT.md`. Do not invent a materially different application shell, navigation model, inspector structure, or workflow without first updating that contract deliberately.
+The approved UI direction and interaction contract are defined in `docs/UI_CONTRACT.md`. Do not invent a materially different application shell, navigation model, inspector structure, workflow, or language behavior without first updating that contract deliberately.
+
+## Localization rule
+
+The shipped UI supports English (`en`) and Japanese (`ja`).
+
+- Do not add new user-facing strings directly into feature components when they can be represented by translation keys.
+- Add English and Japanese locale entries in the same change as every newly shipped control, message, label, status, validation string, or help string.
+- Keep the locale resources structurally synchronized.
+- English is the fallback when a translation is missing or the browser locale is unsupported.
+- Explicit user locale choice is persisted locally and overrides automatic browser detection.
+- Do not automatically translate user-authored project content.
+- Changing UI language must not mutate the active project or change serialized project compatibility.
 
 ## Development discipline
 
 - Make changes against the current repository state, not chat memory.
-- Re-read the relevant public spec/roadmap/architecture/UI contract before starting a materially new feature.
+- Re-read the latest relevant public spec/roadmap/architecture/UI contract before starting a materially new feature and after those contracts are changed during an active branch.
+- Treat the current branch versions of those documents as the implementation contract for that branch.
+- Update public docs before or together with implementation when public behavior or development policy changes.
 - Update public docs when shipped public behavior changes.
 - Keep planned and shipped behavior clearly distinguished.
-- Add or update tests for deterministic sampling, project serialization, renderer contracts and other affected behavior where applicable.
+- Add or update tests for deterministic sampling, project serialization, renderer contracts, locale fallback/selection, and other affected behavior where applicable.
 - Do not claim a visual feature is complete solely because it technically renders; visual stability and quality are part of acceptance.
 
 ## Roadmap discipline
@@ -57,6 +88,8 @@ The approved UI direction and interaction contract are defined in `docs/UI_CONTR
 Implement the current stage without prematurely coupling later-stage features into it. Shared interfaces may prepare for later stages, but unused complexity should not be added only because a later feature is listed in the roadmap.
 
 UI for later roadmap stages may be represented in design documentation, but controls in the working application must not appear functional before their underlying behavior exists.
+
+The localization baseline defined in `docs/ROADMAP.md` must be completed before Stage 2 adds further visible morph controls. Later stages must extend the same localization layer rather than creating stage-specific language handling.
 
 ## Naming
 

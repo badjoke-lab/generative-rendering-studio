@@ -2,13 +2,46 @@
 
 ## Purpose
 
-Generative Rendering Studio is a browser-first visual creation tool. It is intended to let users import or generate visual sources, choose alternative render representations, animate or morph them, combine them, and export finished visual work.
+Generative Rendering Studio is a browser-first general-purpose visual creation tool. It is intended to let users import or generate visual sources, choose alternative render representations, animate or morph them, combine them, optionally drive them from audio or data, and export finished visual work.
 
-The project is not limited to ASCII art, particles, music videos, or one procedural preset.
+The product is not defined by any one content service, music platform, media provider, renderer, preset, or output genre. It is not limited to ASCII art, particles, music videos, visualizers, or one procedural preset.
 
 ## Core user flow
 
-`Add a source -> choose how it looks -> choose how it moves -> combine if needed -> export`
+`Add or generate sources -> choose how they look -> choose how they move -> compose and modulate if needed -> preview -> export`
+
+Still workflows may stop after choosing the look and exporting a frame. Time-based workflows may continue through morphing, layers, timeline, motion, modulation, effects, and video export.
+
+## General workflow families
+
+Public product language and UI should describe capabilities in service-neutral terms. Representative workflow families include:
+
+- still-image rendering and stylization;
+- text, logo, and shape transformation;
+- source-to-source morphing;
+- existing-video transformation;
+- motion graphics and title animation;
+- procedural and generative visual creation;
+- audio-reactive and soundtrack-based visual creation;
+- data-driven visual creation;
+- multi-source compositing;
+- looping visual/background creation;
+- finished still-image and time-based media export.
+
+Specific third-party services may appear in examples or user-authored workflows, but they must not define product-level feature names, roadmap stages, persistent IDs, or architecture.
+
+## Interface languages
+
+The initial product UI supports English and Japanese.
+
+- English is the fallback locale for unsupported browser languages.
+- Japanese may be selected automatically when the browser preference is Japanese.
+- Users can explicitly switch language in the application.
+- An explicit language choice is stored locally and reused on later visits.
+- Switching UI language changes interface labels, help text, errors, and other application chrome only. It does not translate user-authored project content or alter the project schema.
+- Project files, source IDs, renderer IDs, migrations, and other persistent contracts remain language-neutral.
+
+The product must avoid partially mixed English/Japanese UI states for shipped controls. Newly shipped public controls require both locale entries.
 
 ## Source categories
 
@@ -18,7 +51,7 @@ Planned and progressively implemented source categories include:
 - SVG;
 - text;
 - video;
-- audio as soundtrack or modulation input;
+- audio as soundtrack, analysis, or modulation input;
 - 3D assets;
 - procedural geometry;
 - structured data and live inputs where practical.
@@ -52,7 +85,7 @@ Video support is intended to preserve the usefulness of existing footage. A vide
 
 Procedural geometry is part of the same source system. Primitive, flow-based and organic presets are examples rather than special architecture-level cases. Compatible procedural sources should be renderable with the same renderer families as imported media.
 
-## Audio
+## Audio and data
 
 Audio is optional. It may be used as:
 
@@ -60,15 +93,21 @@ Audio is optional. It may be used as:
 - analysis input;
 - modulation input.
 
-Audio-reactive visuals are one workflow, not the product definition.
+Structured or live data may likewise drive compatible visual parameters where implemented. Audio-reactive, soundtrack-based, data-reactive, and visualizer workflows are general workflow families; no specific music-generation, streaming, editing, or hosting service is part of the product definition.
 
 ## Timeline and composition
 
 Still-image workflows should remain simple and should not require a timeline. Animation and video workflows will progressively gain layers, timing, keyframes, masks, effects, morph tracks and parameter automation.
 
+## Export
+
+The output system is intended to support both still and time-based work. Initial still outputs are PNG and WebP. Animation/video output expands progressively as browser-safe encoding, audio inclusion, duration, resolution, and codec/container handling are hardened. Output terminology should describe media capabilities rather than a specific downstream platform or publishing service.
+
 ## Privacy direction
 
 The product is designed around local processing in the user's browser/device. Public privacy claims will only describe behavior that is actually implemented and verified.
+
+Locale preference should also remain local unless a future account-sync feature is deliberately introduced and documented.
 
 ## Product form
 
