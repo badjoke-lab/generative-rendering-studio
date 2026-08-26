@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { brand } from "@grs/brand";
 import { createEmptyProject, pointFieldToFloat32, sampleRasterToPointField } from "@grs/core";
-import { WebGLPreview } from "./webgl/WebGLPreview";
+import { WebGLPreview, type PreviewRendererMode } from "./webgl/WebGLPreview";
 import "./styles.css";
 
 const project = createEmptyProject(1);
@@ -51,6 +51,7 @@ function rasterizeText(text: string) {
 function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [positions, setPositions] = useState<Float32Array>();
+  const [rendererMode, setRendererMode] = useState<PreviewRendererMode>("point");
   const [sourceLabel, setSourceLabel] = useState("sample_source");
   const [sourceDetail, setSourceDetail] = useState("Built-in fallback field");
   const [sourceError, setSourceError] = useState<string | null>(null);
@@ -108,14 +109,18 @@ function App() {
 
       <section className="canvas-column">
         <div className="canvas-toolbar"><div className="tool-group"><button type="button">✋</button><button type="button">⌖</button><button type="button">△</button><button type="button">↻</button></div><div className="tool-group compact"><button type="button">3D</button><button type="button">▦</button></div><div className="view-actions"><button type="button">Fit</button><button type="button">1:1</button><button type="button">Full</button></div></div>
-        <section className="preview-frame" aria-label="Preview"><div className="canvas-meta"><span>1920 × 1080</span><span>60fps</span><span className="timecode">00:00:00.00</span></div><WebGLPreview positions={positions} /><div className="canvas-status"><span>▲ Camera: Main</span><span>● Point Mode</span><span>○ WebGL2</span></div></section>
+        <section className="preview-frame" aria-label="Preview"><div className="canvas-meta"><span>1920 × 1080</span><span>60fps</span><span className="timecode">00:00:00.00</span></div><WebGLPreview positions={positions} mode={rendererMode} /><div className="canvas-status"><span>▲ Camera: Main</span><span>● {rendererMode === "glyph" ? "Glyph" : "Point"} Mode</span><span>○ WebGL2</span></div></section>
         <div className="transport-bar"><button type="button">▶</button><button type="button">■</button><button type="button">|◀</button><button type="button">▶|</button><div className="transport-time">Stage 1 source preview</div><input aria-label="Timeline position" type="range" min="0" max="100" defaultValue="0" disabled /><button type="button">🔊</button><button type="button">⛶</button></div>
       </section>
 
       <aside className="inspector-panel">
         <div className="inspector-tabs"><button type="button">ソース</button><button className="active" type="button">レンダー</button><button type="button">モーション</button><button type="button">エフェクト</button></div>
-        <section className="inspector-section"><h2>レンダラーモード</h2><div className="renderer-segmented">{rendererModes.map((mode) => <button className={mode === "Point" ? "active" : ""} disabled={mode !== "Point"} title={mode === "Point" ? "Implemented" : "Stage 1 planned"} type="button" key={mode}>{mode}</button>)}</div></section>
-        <section className="inspector-section"><h2>Point 設定</h2><label>入力<code>{sourceLabel}</code></label><label>最大サンプル数<code>18,000</code></label><p className="muted">画像・SVG・テキストを共通 Point Field に変換してWebGL2で描画しています。Glyph / Particle はこの同じFieldを消費する次の実装です。</p></section>
+        <section className="inspector-section"><h2>レンダラーモード</h2><div className="renderer-segmented">{rendererModes.map((mode) => {
+          const implemented = mode === "Point" || mode === "Glyph";
+          const active = (mode === "Point" && rendererMode === "point") || (mode === "Glyph" && rendererMode === "glyph");
+          return <button className={active ? "active" : ""} disabled={!implemented} title={implemented ? "Implemented" : "Stage 1 planned"} type="button" key={mode} onClick={() => { if (mode === "Point") setRendererMode("point"); if (mode === "Glyph") setRendererMode("glyph"); }}>{mode}</button>;
+        })}</div></section>
+        <section className="inspector-section"><h2>{rendererMode === "glyph" ? "Glyph" : "Point"} 設定</h2><label>入力<code>{sourceLabel}</code></label><label>最大サンプル数<code>18,000</code></label>{rendererMode === "glyph" ? <label>文字セット<code>01 (Basic)</code></label> : null}<p className="muted">画像・SVG・テキストを共通 Point Field に変換し、同じFieldをPointまたはGlyph rendererで描画しています。</p></section>
         <section className="inspector-section compact-section"><div className="toggle-row"><span>Local processing</span><span className="toggle on" /></div><div className="toggle-row"><span>WebGL2</span><span className="toggle on" /></div></section>
       </aside>
     </main>
