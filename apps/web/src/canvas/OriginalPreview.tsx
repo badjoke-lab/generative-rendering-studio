@@ -34,7 +34,9 @@ export function OriginalPreview({
       source.height = raster.height;
       const sourceCtx = source.getContext("2d");
       if (sourceCtx) {
-        sourceCtx.putImageData(new ImageData(raster.data, raster.width, raster.height), 0, 0);
+        const imageData = sourceCtx.createImageData(raster.width, raster.height);
+        imageData.data.set(raster.data);
+        sourceCtx.putImageData(imageData, 0, 0);
         const scale = Math.min(width / raster.width, height / raster.height);
         const drawWidth = raster.width * scale;
         const drawHeight = raster.height * scale;
