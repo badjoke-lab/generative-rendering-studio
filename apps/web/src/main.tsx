@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { brand } from "@grs/brand";
 import { createEmptyProject, pointFieldToFloat32, sampleRasterToPointField, type RasterPixels } from "@grs/core";
+import { OriginalPreview } from "./canvas/OriginalPreview";
 import { WebGLPreview, type PreviewRendererMode } from "./webgl/WebGLPreview";
 import "./styles.css";
 
 const project = createEmptyProject(1);
 const rendererModes = ["Original", "Glyph", "Point", "Particle"] as const;
+type StudioRendererMode = "original" | PreviewRendererMode;
 
 async function rasterizeImageFile(file: File) {
   const url = URL.createObjectURL(file);
@@ -67,7 +69,7 @@ function App() {
   const [positions, setPositions] = useState<Float32Array>();
   const [colors, setColors] = useState<Float32Array>();
   const [pointCount, setPointCount] = useState(0);
-  const [rendererMode, setRendererMode] = useState<PreviewRendererMode>("point");
+  const [rendererMode, setRendererMode] = useState<StudioRendererMode>("point");
   const [elementSize, setElementSize] = useState(1);
   const [density, setDensity] = useState(62);
   const [edgeWeight, setEdgeWeight] = useState(45);
@@ -110,8 +112,7 @@ function App() {
   const addText = () => {
     const text = window.prompt("レンダリングするテキストを入力", "GRS");
     if (!text) return;
-    const pixels = rasterizeText(text);
-    setRaster(pixels);
+    setRaster(rasterizeText(text));
     setSourceLabel(text);
     setSourceDetail("Text source");
     setSourceError(null);
@@ -121,70 +122,51 @@ function App() {
     const canvas = previewCanvas.current;
     if (!canvas) return;
     const safeName = sourceLabel.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "render";
-    if (exportFormat === "webp") downloadCanvas(canvas, "image/webp", `${safeName}-${rendererMode}.webp`);
-    else downloadCanvas(canvas, "image/png", `${safeName}-${rendererMode}.png`);
+    const ext = exportFormat === "webp" ? "webp" : "png";
+    downloadCanvas(canvas, exportFormat === "webp" ? "image/webp" : "image/png", `${safeName}-${rendererMode}.${ext}`);
   };
 
-  const activeModeLabel = rendererMode === "glyph" ? "Glyph" : rendererMode === "particle" ? "Particle" : "Point";
+  const activeModeLabel = rendererMode[0].toUpperCase() + rendererMode.slice(1);
 
   return (
     <main className="studio-shell">
       <header className="studio-topbar">
         <div className="brand-lockup"><strong>{brand.shortName}</strong><span>{brand.displayName}</span></div>
-        <nav className="workspace-tabs" aria-label="Workspace">
-          <button className="tab active" type="button">Compose</button><button className="tab" type="button">Timeline</button><button className="tab" type="button">Export</button>
-        </nav>
-        <div className="top-actions"><button className="icon-button" type="button">↶</button><button className="icon-button" type="button">↷</button><span className="zoom-label">100%</span><button className="render-button" type="button" onClick={exportStill}>↓ Export still</button></div>
+        <nav className="workspace-tabs" aria-label="Workspace"><button className="tab active">Compose</button><button className="tab">Timeline</button><button className="tab">Export</button></nav>
+        <div className="top-actions"><button className="icon-button">↶</button><button className="icon-button">↷</button><span className="zoom-label">100%</span><button className="render-button" onClick={exportStill}>↓ Export still</button></div>
       </header>
 
       <aside className="source-panel">
         <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file); event.currentTarget.value = ""; }} />
-        <button className="source-add" type="button" onClick={() => fileInput.current?.click()}>＋ Source を追加</button>
-        <div className="source-tabs" role="tablist" aria-label="Source types">
-          <button className="source-tab active" type="button" onClick={() => fileInput.current?.click()}>画像</button>
-          <button className="source-tab" type="button" disabled>動画</button>
-          <button className="source-tab" type="button" onClick={addText}>テキスト</button>
-          <button className="source-tab" type="button" onClick={() => fileInput.current?.click()}>SVG</button>
-          <button className="source-tab" type="button" disabled>3D</button>
-        </div>
-        <section className="asset-card selected" aria-label="Selected source"><div className="asset-thumb" aria-hidden="true" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString()} points` : ""}`}</span></div><button className="asset-menu" type="button">⋮</button></section>
-        <button className="asset-add-row" type="button" onClick={() => fileInput.current?.click()}>＋</button>
+        <button className="source-add" onClick={() => fileInput.current?.click()}>＋ Source を追加</button>
+        <div className="source-tabs" role="tablist"><button className="source-tab active" onClick={() => fileInput.current?.click()}>画像</button><button className="source-tab" disabled>動画</button><button className="source-tab" onClick={addText}>テキスト</button><button className="source-tab" onClick={() => fileInput.current?.click()}>SVG</button><button className="source-tab" disabled>3D</button></div>
+        <section className="asset-card selected"><div className="asset-thumb" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString()} points` : ""}`}</span></div><button className="asset-menu">⋮</button></section>
+        <button className="asset-add-row" onClick={() => fileInput.current?.click()}>＋</button>
         <div className="panel-divider" /><div className="section-title-row"><strong>レイヤー</strong><span>⌄</span></div>
         <section className="layer-row selected"><span className="visibility">◉</span><span className="layer-chip" /><div><strong>メインレンダー</strong><small>100%</small></div></section>
         <div className="panel-footer"><span>Schema v{project.schemaVersion}</span><span>Seed {project.seed}</span></div>
       </aside>
 
       <section className="canvas-column">
-        <div className="canvas-toolbar"><div className="tool-group"><button type="button">✋</button><button type="button">⌖</button><button type="button">△</button><button type="button">↻</button></div><div className="tool-group compact"><button type="button">3D</button><button type="button">▦</button></div><div className="view-actions"><button type="button">Fit</button><button type="button">1:1</button><button type="button">Full</button></div></div>
-        <section className="preview-frame" aria-label="Preview"><div className="canvas-meta"><span>Preview</span><span>{pointCount ? `${pointCount.toLocaleString()} elements` : "fallback"}</span><span className="timecode">00:00:00.00</span></div><WebGLPreview canvasRef={previewCanvas} positions={positions} colors={colors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} /><div className="canvas-status"><span>▲ Camera: Main</span><span>● {activeModeLabel} Mode</span><span>○ WebGL2</span></div></section>
-        <div className="transport-bar"><button type="button">▶</button><button type="button">■</button><button type="button">|◀</button><button type="button">▶|</button><div className="transport-time">Stage 1 source preview</div><input aria-label="Timeline position" type="range" min="0" max="100" defaultValue="0" disabled /><button type="button">🔊</button><button type="button">⛶</button></div>
+        <div className="canvas-toolbar"><div className="tool-group"><button>✋</button><button>⌖</button><button>△</button><button>↻</button></div><div className="tool-group compact"><button>3D</button><button>▦</button></div><div className="view-actions"><button>Fit</button><button>1:1</button><button>Full</button></div></div>
+        <section className="preview-frame"><div className="canvas-meta"><span>Preview</span><span>{rendererMode === "original" ? "Original source" : pointCount ? `${pointCount.toLocaleString()} elements` : "fallback"}</span><span className="timecode">00:00:00.00</span></div>
+          {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={positions} colors={colors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} />}
+          <div className="canvas-status"><span>▲ Camera: Main</span><span>● {activeModeLabel} Mode</span><span>○ {rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
+        <div className="transport-bar"><button>▶</button><button>■</button><button>|◀</button><button>▶|</button><div className="transport-time">Stage 1 source preview</div><input aria-label="Timeline position" type="range" min="0" max="100" defaultValue="0" disabled /><button>🔊</button><button>⛶</button></div>
       </section>
 
       <aside className="inspector-panel">
-        <div className="inspector-tabs"><button type="button">ソース</button><button className="active" type="button">レンダー</button><button type="button">モーション</button><button type="button">エフェクト</button></div>
+        <div className="inspector-tabs"><button>ソース</button><button className="active">レンダー</button><button>モーション</button><button>エフェクト</button></div>
         <section className="inspector-section"><h2>レンダラーモード</h2><div className="renderer-segmented">{rendererModes.map((mode) => {
-          const implemented = mode === "Point" || mode === "Glyph" || mode === "Particle";
-          const active = (mode === "Point" && rendererMode === "point") || (mode === "Glyph" && rendererMode === "glyph") || (mode === "Particle" && rendererMode === "particle");
-          return <button className={active ? "active" : ""} disabled={!implemented} title={implemented ? "Implemented" : "Stage 1 planned"} type="button" key={mode} onClick={() => { if (mode === "Point") setRendererMode("point"); if (mode === "Glyph") setRendererMode("glyph"); if (mode === "Particle") setRendererMode("particle"); }}>{mode}</button>;
+          const value: StudioRendererMode = mode.toLowerCase() as StudioRendererMode;
+          return <button className={rendererMode === value ? "active" : ""} key={mode} onClick={() => setRendererMode(value)}>{mode}</button>;
         })}</div></section>
-        <section className="inspector-section">
-          <h2>{activeModeLabel} 設定</h2>
-          <label>入力<code>{sourceLabel}</code></label>
-          {rendererMode === "glyph" ? <label>文字セット<code>01 (Basic)</code></label> : null}
-          <label>密度<div className="range-row"><input type="range" min="5" max="100" value={density} onChange={(event) => setDensity(Number(event.target.value))} /><output>{density}%</output></div></label>
-          <label>サイズ<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} onChange={(event) => setElementSize(Number(event.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label>
-          <label>エッジ強調<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} onChange={(event) => setEdgeWeight(Number(event.target.value))} /><output>{edgeWeight}%</output></div></label>
-          <label>Dither<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} onChange={(event) => setDitherStrength(Number(event.target.value))} /><output>{ditherStrength}%</output></div></label>
-          <label>描画色<div className="color-row"><input type="color" value={tint} onChange={(event) => setTint(event.target.value)} /><code>{tint}</code></div></label>
-          <label>背景<div className="color-row"><input type="color" value={background} onChange={(event) => setBackground(event.target.value)} /><code>{background}</code></div></label>
-          <div className="toggle-row"><span>Source color</span><button className={`toggle ${useSourceColor ? "on" : ""}`} type="button" aria-pressed={useSourceColor} onClick={() => setUseSourceColor((value) => !value)} /></div>
+        <section className="inspector-section"><h2>{activeModeLabel} 設定</h2><label>入力<code>{sourceLabel}</code></label>
+          {rendererMode !== "original" && <><label>密度<div className="range-row"><input type="range" min="5" max="100" value={density} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>サイズ<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>エッジ強調<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>Dither<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>描画色<div className="color-row"><input type="color" value={tint} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>Source color</span><button className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
+          <label>背景<div className="color-row"><input type="color" value={background} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
-        <section className="inspector-section">
-          <h2>Still Export</h2>
-          <label>形式<select value={exportFormat} onChange={(event) => setExportFormat(event.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label>
-          <button className="source-add" type="button" onClick={exportStill}>現在のフレームを書き出す</button>
-        </section>
-        <section className="inspector-section compact-section"><div className="toggle-row"><span>Local processing</span><span className="toggle on" /></div><div className="toggle-row"><span>WebGL2</span><span className="toggle on" /></div></section>
+        <section className="inspector-section"><h2>Still Export</h2><label>形式<select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" onClick={exportStill}>現在のフレームを書き出す</button></section>
+        <section className="inspector-section compact-section"><div className="toggle-row"><span>Local processing</span><span className="toggle on" /></div><div className="toggle-row"><span>{rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span><span className="toggle on" /></div></section>
       </aside>
     </main>
   );
