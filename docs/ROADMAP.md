@@ -4,6 +4,29 @@ This roadmap is the public development guide for the repository. It describes in
 
 All roadmap language is service-neutral. Third-party services may be used by individual users, but no specific music-generation, streaming, editing, hosting, or publishing service defines a stage, feature family, persistent ID, or architecture contract.
 
+## Product and release order
+
+The browser application is the primary product and is developed first. The project does not maintain two independent rendering engines or two competing application codebases.
+
+Development order is:
+
+`shared rendering/project core -> browser application -> progressive browser releases -> PWA after web stabilization -> optional desktop wrapper only for demonstrated browser limitations`
+
+A desktop/standalone build, if introduced, must reuse the same project model and rendering core. It is intended for workloads such as long-duration, large-media, codec/container, memory, or high-resolution export cases that cannot be handled reliably in supported browsers. Desktop work must not delay ordinary browser functionality merely to preserve feature parity with a desktop build that may not be necessary.
+
+### Browser release sequence
+
+The intended public release sequence is capability-based rather than date-based:
+
+- **Development Preview — after Stage 2:** still rendering plus usable source-to-source Morph and short browser-safe time-based output.
+- **Public Alpha — after Stage 3:** existing video becomes a first-class import/transformation source.
+- **Public Beta — after Stage 5:** procedural sources plus Layers/Timeline/Keyframes and broader Studio composition make the product useful as a production environment rather than a conversion demo.
+- **v1 Release Candidate — after Stage 6:** optional audio/data modulation completes the major general-purpose creation paths.
+- **v1 Stable — after Stage 7:** practical browser export, resolution/duration/frame-rate handling, audio inclusion where supported, and browser capability handling are hardened.
+- **Optional Desktop — evaluated around Stage 7/v1:** implemented only where measured browser limitations justify it.
+
+Deployment/provider details are operational choices rather than core product architecture. Public browser builds should be deployable as a static/browser-first application where practical, with rendering performed locally on the user's device. Hosting may change without changing project files or the rendering core.
+
 ## Stage 0 — Foundation
 
 - browser application shell;
@@ -143,11 +166,12 @@ Status: not started.
 - include audio in time-based output where the selected output path supports it;
 - handle browser codec/container capability differences explicitly;
 - improve long-duration and large-media reliability;
-- consider a desktop wrapper only for demonstrated browser limitations while sharing the same project/rendering core.
+- measure browser limitations before committing to a desktop wrapper;
+- if justified, add a desktop wrapper that shares the browser application's project model and rendering core.
 
 Outcome: projects can be rendered more reliably as practical finished still or time-based media; desktop support is introduced only where it solves demonstrated browser limits rather than becoming a separate product architecture.
 
-User behavior: choose an output type and supported settings, render the finished composition, receive a usable media file, and remain in the browser for normal workloads. If a later desktop build is needed for heavy workloads, the same project can continue through the shared core instead of requiring a separate authoring product.
+User behavior: choose an output type and supported settings, render the finished composition, receive a usable media file, and remain in the browser for normal workloads. If a later desktop build is justified for heavy workloads, the same project can continue through the shared core instead of requiring a separate authoring product.
 
 Status: not started beyond the Stage 1 still-export baseline and Stage 2 short-output work.
 
