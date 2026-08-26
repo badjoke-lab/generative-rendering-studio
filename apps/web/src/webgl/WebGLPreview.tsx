@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export type PreviewRendererMode = "point" | "glyph" | "particle";
+export type GlyphPreset = "binary" | "density" | "symbols";
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
@@ -62,18 +63,41 @@ float box(vec2 p, vec2 halfSize) {
   vec2 d = abs(p) - halfSize;
   return 1.0 - smoothstep(0.0, 0.055, max(d.x, d.y));
 }
+float ring(vec2 p, vec2 scale, float radius, float thickness) {
+  float d = abs(length(p / scale) - radius);
+  return 1.0 - smoothstep(thickness, thickness + 0.05, d);
+}
+float lineSeg(vec2 p, vec2 a, vec2 b, float width) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return 1.0 - smoothstep(width, width + 0.04, length(pa - ba * h));
+}
 
 void main() {
   vec2 p = gl_PointCoord - vec2(0.5);
-  float ink;
+  float ink = 0.0;
   if (v_glyph == 0) {
-    float ring = abs(length(p / vec2(0.62, 0.90)) - 0.39);
-    ink = 1.0 - smoothstep(0.035, 0.085, ring);
-  } else {
+    ink = ring(p, vec2(0.62, 0.90), 0.39, 0.035);
+  } else if (v_glyph == 1) {
     float stem = box(p - vec2(0.03, 0.0), vec2(0.075, 0.38));
     float cap = box(p - vec2(-0.06, 0.31), vec2(0.12, 0.06));
     float foot = box(p - vec2(0.0, -0.34), vec2(0.20, 0.06));
     ink = max(stem, max(cap, foot));
+  } else if (v_glyph == 2) {
+    ink = smoothstep(0.13, 0.0, length(p));
+  } else if (v_glyph == 3) {
+    ink = max(box(p, vec2(0.34, 0.055)), box(p, vec2(0.055, 0.34)));
+  } else if (v_glyph == 4) {
+    ink = max(lineSeg(p, vec2(-0.28, -0.28), vec2(0.28, 0.28), 0.055), lineSeg(p, vec2(-0.28, 0.28), vec2(0.28, -0.28), 0.055));
+  } else if (v_glyph == 5) {
+    ink = max(box(p - vec2(0.0, 0.18), vec2(0.30, 0.05)), max(box(p, vec2(0.30, 0.05)), box(p + vec2(0.0, 0.18), vec2(0.30, 0.05))));
+  } else if (v_glyph == 6) {
+    ink = max(lineSeg(p, vec2(-0.30, -0.22), vec2(0.0, 0.30), 0.06), lineSeg(p, vec2(0.0, 0.30), vec2(0.30, -0.22), 0.06));
+  } else {
+    float outer = box(p, vec2(0.31, 0.31));
+    float inner = box(p, vec2(0.19, 0.19));
+    ink = max(0.0, outer - inner);
   }
   if (ink < 0.06) discard;
   outColor = vec4(v_color.rgb, v_color.a * ink);
@@ -129,9 +153,19 @@ function buildFallbackColors(count: number) {
   return colors;
 }
 
-function buildGlyphIndices(count: number) {
+function luminanceAt(colors: Float32Array, index: number) {
+  const base = index * 4;
+  return 0.2126 * (colors[base] ?? 1) + 0.7152 * (colors[base + 1] ?? 1) + 0.0722 * (colors[base + 2] ?? 1);
+}
+
+function buildGlyphIndices(count: number, colors: Float32Array, preset: GlyphPreset) {
   const glyphs = new Float32Array(count);
-  for (let i = 0; i < count; i += 1) glyphs[i] = i % 2;
+  for (let i = 0; i < count; i += 1) {
+    const l = luminanceAt(colors, i);
+    if (preset === "binary") glyphs[i] = l >= 0.5 ? 1 : 0;
+    else if (preset === "density") glyphs[i] = Math.min(7, Math.floor(l * 8));
+    else glyphs[i] = 2 + ((i * 5 + Math.floor(l * 11)) % 6);
+  }
   return glyphs;
 }
 
@@ -148,6 +182,7 @@ export function WebGLPreview({
   tint = "#c7c2ff",
   background = "#090b10",
   useSourceColor = false,
+  glyphPreset = "binary",
   canvasRef: externalCanvasRef,
 }: {
   positions?: Float32Array;
@@ -157,6 +192,7 @@ export function WebGLPreview({
   tint?: string;
   background?: string;
   useSourceColor?: boolean;
+  glyphPreset?: GlyphPreset;
   canvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }) {
   const internalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -166,7 +202,6 @@ export function WebGLPreview({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const gl = canvas.getContext("webgl2", { alpha: false, antialias: true, preserveDrawingBuffer: true });
     if (!gl) {
       setError("WebGL2 is not available in this browser/device.");
@@ -185,7 +220,7 @@ export function WebGLPreview({
     const points = positions && positions.length >= 2 ? positions : buildFallbackField();
     const count = points.length / 2;
     const sourceColors = colors && colors.length === count * 4 ? colors : buildFallbackColors(count);
-    const glyphs = buildGlyphIndices(count);
+    const glyphs = buildGlyphIndices(count, sourceColors, glyphPreset);
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -254,7 +289,7 @@ export function WebGLPreview({
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [background, canvasRef, colors, elementSize, mode, positions, tint, useSourceColor]);
+  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, tint, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
