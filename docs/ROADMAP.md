@@ -2,6 +2,8 @@
 
 This roadmap is the public development guide for the repository. It describes intended implementation stages at a level suitable for public collaboration. Detailed internal release gates and strategy are maintained outside this public repository.
 
+All roadmap language is service-neutral. Third-party services may be used by individual users, but no specific music-generation, streaming, editing, hosting, or publishing service defines a stage, feature family, persistent ID, or architecture contract.
+
 ## Stage 0 — Foundation
 
 - browser application shell;
@@ -11,7 +13,11 @@ This roadmap is the public development guide for the repository. It describes in
 - WebGL2 rendering foundation;
 - tests and CI baseline.
 
-Outcome: the project has a stable browser-first architecture that later rendering, motion, video, audio, and export features can extend without becoming one-off demos.
+Outcome: the project has a stable browser-first architecture that later rendering, motion, video, audio/data, composition, and export features can extend without becoming one-off demos.
+
+User behavior: users enter a browser-based Studio whose project model and rendering core can support multiple source and renderer types without tying saved projects to a temporary product name or one visual effect.
+
+Status: completed on main.
 
 ## Stage 1 — Still rendering
 
@@ -32,9 +38,11 @@ Initial still output targets include PNG and WebP where supported.
 
 Outcome: users can import their own still sources, transform their visual representation, adjust the look, and export a still image locally.
 
-## Localization baseline — before Stage 2 UI expansion
+User behavior: add an image, SVG, or text source; switch between Original/Glyph/Point/Particle; adjust appearance controls; preview the result; export the current frame as PNG or WebP without requiring a timeline.
 
-Before additional morph UI expands the visible interface, establish the bilingual UI foundation:
+Status: first complete line merged to main.
+
+## Localization baseline — before Stage 2 UI expansion
 
 - English (`en`) and Japanese (`ja`) locale resources;
 - browser-language detection on first use;
@@ -47,16 +55,25 @@ Before additional morph UI expands the visible interface, establish the bilingua
 
 Outcome: the same project/editor behaves consistently in English or Japanese, and future stages can add UI without accumulating language-specific hard-coded strings or changing project compatibility.
 
+User behavior: the editor initially follows the supported browser language, users can switch English/Japanese explicitly, and the chosen UI language persists locally while project content and saved project semantics remain unchanged.
+
+Status: implemented on the current Stage 2 branch and CI-verified before Morph UI expansion.
+
 ## Stage 2 — Source-to-source morphing
 
 - two-source scenes;
 - coherent A-to-B assignment;
 - easing and duration controls;
 - deterministic project seed;
+- GPU-side interpolation for real-time preview;
 - animation preview;
-- short browser-safe output where reliable.
+- short browser-safe time-based output where reliable.
 
 Outcome: users can load two visual sources and produce a coherent editable transition between them rather than random particle reassignment.
+
+User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation once the browser-safe output path is complete.
+
+Status: current development stage. Two-source loading, deterministic mapping, controls/playback, and the GPU morph path are implemented on the active branch; short animation output and final Stage 2 hardening remain.
 
 ## Stage 3 — Existing-video transformation
 
@@ -68,6 +85,10 @@ Outcome: users can load two visual sources and produce a coherent editable trans
 
 Outcome: existing footage becomes a first-class source that can remain original or be transformed into the same rendering families while preserving stable motion between frames.
 
+User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
+
+Status: not started.
+
 ## Stage 4 — Procedural sources
 
 - primitive geometry;
@@ -77,6 +98,10 @@ Outcome: existing footage becomes a first-class source that can remain original 
 - renderer reuse across imported and generated sources.
 
 Outcome: users can create renderable source material inside the tool rather than relying only on imported files, while named organic forms remain presets rather than special-case architecture.
+
+User behavior: choose or configure a generated primitive/flow/noise/organic source, then treat it like imported media by applying compatible renderers and later motion/composition controls. Individual recognizable forms are presets, not the definition of the engine.
+
+Status: not started.
 
 ## Stage 5 — Studio workflow
 
@@ -91,27 +116,68 @@ Outcome: users can create renderable source material inside the tool rather than
 
 Outcome: the product becomes a multi-scene production environment where sources, transformations, motion, and effects can be arranged over time instead of being limited to a single conversion view.
 
+User behavior: stack multiple sources and generated elements as layers; place and trim time-based elements; keyframe visual parameters and camera motion; apply masks/blending/effects; arrange Morph and other motion over time; preview a composed sequence. Still-image users can continue using the simpler non-timeline path.
+
+Status: not started.
+
 ## Stage 6 — Audio/data modulation
 
+- audio as optional soundtrack;
 - waveform and amplitude analysis;
 - frequency-band analysis;
 - parameter mapping;
+- structured/data inputs where practical;
 - optional beat/onset assistance as reliability permits;
 - editable assisted/automatic workflows built on the same modulation system.
 
-Outcome: audio or data can drive visual parameters such as motion, density, color, effects, camera, or morph progress, enabling music-video and visualizer workflows without making audio mandatory.
+Outcome: optional audio or data can drive visual parameters such as motion, density, color, effects, camera, or morph progress without making audio, music, a particular service, or a particular output genre mandatory.
+
+User behavior: add an audio or supported data source; choose which analysis/data signal drives which visual parameter; preview reactive motion; edit or override assisted mappings; optionally retain audio as soundtrack for a time-based export. This supports audio-reactive visuals, soundtrack-based motion graphics, visualizers, data-driven visuals, and other workflows through the same modulation system.
+
+Status: not started.
 
 ## Stage 7 — Export hardening and optional desktop support
 
-Web export will be improved first. A desktop wrapper is considered only for concrete browser limitations such as long-duration, large-media, codec or high-resolution export workloads.
+- harden still and time-based browser export;
+- support practical resolution, duration, and frame-rate choices where reliable;
+- include audio in time-based output where the selected output path supports it;
+- handle browser codec/container capability differences explicitly;
+- improve long-duration and large-media reliability;
+- consider a desktop wrapper only for demonstrated browser limitations while sharing the same project/rendering core.
 
-Outcome: projects can be rendered more reliably as practical finished media; desktop support is introduced only where it solves demonstrated browser limits rather than becoming a separate product architecture.
+Outcome: projects can be rendered more reliably as practical finished still or time-based media; desktop support is introduced only where it solves demonstrated browser limits rather than becoming a separate product architecture.
+
+User behavior: choose an output type and supported settings, render the finished composition, receive a usable media file, and remain in the browser for normal workloads. If a later desktop build is needed for heavy workloads, the same project can continue through the shared core instead of requiring a separate authoring product.
+
+Status: not started beyond the Stage 1 still-export baseline and Stage 2 short-output work.
 
 ## Later exploration
 
 Potential areas include deeper 3D workflows, point clouds, formula/node editing, custom shaders, interactive exports and additional data/control inputs.
 
 Outcome: advanced workflows can expand without changing the source/representation/renderer/motion architecture used by the simpler product paths.
+
+User behavior: advanced users may eventually construct deeper 3D, programmable, node/formula, custom-shader, point-cloud, interactive, or specialized data-driven workflows while existing simple projects remain valid.
+
+Status: exploratory; not part of the Stage 0–7 completion promise.
+
+## General workflow vocabulary
+
+Product documentation and UI should prefer general capability names such as:
+
+- still-image rendering and stylization;
+- text/logo/shape transformation;
+- source-to-source morphing;
+- existing-video transformation;
+- motion graphics and title animation;
+- procedural/generative visual creation;
+- audio-reactive and soundtrack-based visual creation;
+- data-driven visual creation;
+- multi-source compositing;
+- looping visual/background creation;
+- still and time-based media export.
+
+A specific third-party service may be mentioned only as an optional example when context requires it; it must not become the feature heading or product definition.
 
 ## Localization rule across all stages
 
