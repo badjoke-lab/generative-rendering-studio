@@ -25,7 +25,7 @@ The intended public release sequence is capability-based rather than date-based:
 - **v1 Stable — after Stage 7:** practical browser export, resolution/duration/frame-rate handling, audio inclusion where supported, and browser capability handling are hardened.
 - **Optional Desktop — evaluated around Stage 7/v1:** implemented only where measured browser limitations justify it.
 
-Deployment/provider details are operational choices rather than core product architecture. Public browser builds should be deployable as a static/browser-first application where practical, with rendering performed locally on the user's device. Hosting may change without changing project files or the rendering core.
+Deployment/provider details are operational choices rather than core product architecture. Public browser builds should be deployable as a static/browser-first application where practical, with rendering performed locally on the user's device. Hosting may change without changing project files or the rendering core. Public deployment instructions are documented in `docs/DEPLOYMENT.md`.
 
 ## Stage 0 — Foundation
 
@@ -63,9 +63,9 @@ Outcome: users can import their own still sources, transform their visual repres
 
 User behavior: add an image, SVG, or text source; switch between Original/Glyph/Point/Particle; adjust appearance controls; preview the result; export the current frame as PNG or WebP without requiring a timeline.
 
-Status: first complete line merged to main.
+Status: completed on main.
 
-## Localization baseline — before Stage 2 UI expansion
+## Localization baseline
 
 - English (`en`) and Japanese (`ja`) locale resources;
 - browser-language detection on first use;
@@ -80,7 +80,7 @@ Outcome: the same project/editor behaves consistently in English or Japanese, an
 
 User behavior: the editor initially follows the supported browser language, users can switch English/Japanese explicitly, and the chosen UI language persists locally while project content and saved project semantics remain unchanged.
 
-Status: implemented on the current Stage 2 branch and CI-verified before Morph UI expansion.
+Status: completed on main.
 
 ## Stage 2 — Source-to-source morphing
 
@@ -94,9 +94,25 @@ Status: implemented on the current Stage 2 branch and CI-verified before Morph U
 
 Outcome: users can load two visual sources and produce a coherent editable transition between them rather than random particle reassignment.
 
-User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation once the browser-safe output path is complete.
+User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation when the current browser/device supports canvas recording.
 
-Status: current development stage. Two-source loading, deterministic mapping, controls/playback, and the GPU morph path are implemented on the active branch; short animation output and final Stage 2 hardening remain.
+Status: completed and merged to main. The Stage 1 + Stage 2 browser build is now the Development Preview candidate. Public deployment remains gated by the real-browser checks in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`.
+
+## Development Preview preparation — current release lane
+
+- keep repository CI green on the exact deployment candidate;
+- verify the Stage 1 + Stage 2 workflow in real supported browsers;
+- verify downloaded still and short animation files actually open and play;
+- verify unsupported export paths fail safely;
+- verify narrow viewport behavior has no catastrophic breakage;
+- prepare provider-independent static deployment settings and public deployment documentation;
+- deploy only the build that passed the manual browser smoke gate.
+
+Outcome: the first public browser build is a tested Stage 1 + Stage 2 Development Preview rather than an unverified repository build.
+
+User behavior: open the public browser application without installing desktop software; import supported still sources or create text; render as Original/Glyph/Point/Particle; configure and preview A-to-B Morph; switch English/Japanese; export still frames and, where supported, a short Morph animation locally.
+
+Status: current release lane.
 
 ## Stage 3 — Existing-video transformation
 
@@ -110,7 +126,7 @@ Outcome: existing footage becomes a first-class source that can remain original 
 
 User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
 
-Status: not started.
+Status: starts after the Development Preview release lane is closed; not yet implemented.
 
 ## Stage 4 — Procedural sources
 
@@ -173,7 +189,7 @@ Outcome: projects can be rendered more reliably as practical finished still or t
 
 User behavior: choose an output type and supported settings, render the finished composition, receive a usable media file, and remain in the browser for normal workloads. If a later desktop build is justified for heavy workloads, the same project can continue through the shared core instead of requiring a separate authoring product.
 
-Status: not started beyond the Stage 1 still-export baseline and Stage 2 short-output work.
+Status: not started beyond the Stage 1 still-export baseline and Stage 2 short-output path.
 
 ## Later exploration
 
