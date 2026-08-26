@@ -21,6 +21,8 @@ apps/web/dist
 
 A hosting provider should therefore use the repository root as the working directory, run `pnpm build`, and publish `apps/web/dist` as a static site.
 
+Repository CI uses the same frozen-lockfile install contract and uploads the resulting `apps/web/dist` directory as a commit-addressed artifact named `browser-candidate-<commit-sha>`. The artifact is the preferred manual-smoke candidate because it is produced in the same run that performs typecheck, tests, and production build.
+
 ## Hosting requirements
 
 The Development Preview does not require a server-side rendering service or rendering worker. The rendering and current export paths run in the user's browser/device.
@@ -49,10 +51,11 @@ A codename-based preview hostname may be used before final branding is selected.
 ## Release order
 
 1. merge the intended browser candidate to `main` with green CI;
-2. produce the exact static build intended for deployment;
-3. perform the real-browser checks in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md` on that candidate;
+2. use the commit-addressed `browser-candidate-<commit-sha>` artifact from that green CI run as the exact manual-smoke candidate;
+3. serve that static artifact over HTTP/HTTPS without modifying its contents and perform the real-browser checks in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`;
 4. publish only after the critical manual checks pass;
-5. if the deployed build differs from the smoke-tested candidate, repeat the affected checks.
+5. ensure the deployed build is produced from the same tested commit and build contract;
+6. if the deployed build or dependency resolution differs from the smoke-tested candidate, repeat the affected checks.
 
 ## Development Preview scope
 
