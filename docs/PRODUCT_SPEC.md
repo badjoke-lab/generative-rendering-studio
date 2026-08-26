@@ -10,6 +10,19 @@ The project is not limited to ASCII art, particles, music videos, or one procedu
 
 `Add a source -> choose how it looks -> choose how it moves -> combine if needed -> export`
 
+## Interface languages
+
+The initial product UI supports English and Japanese.
+
+- English is the fallback locale for unsupported browser languages.
+- Japanese may be selected automatically when the browser preference is Japanese.
+- Users can explicitly switch language in the application.
+- An explicit language choice is stored locally and reused on later visits.
+- Switching UI language changes interface labels, help text, errors, and other application chrome only. It does not translate user-authored project content or alter the project schema.
+- Project files, source IDs, renderer IDs, migrations, and other persistent contracts remain language-neutral.
+
+The product must avoid partially mixed English/Japanese UI states for shipped controls. Newly shipped public controls require both locale entries.
+
 ## Source categories
 
 Planned and progressively implemented source categories include:
@@ -69,6 +82,8 @@ Still-image workflows should remain simple and should not require a timeline. An
 ## Privacy direction
 
 The product is designed around local processing in the user's browser/device. Public privacy claims will only describe behavior that is actually implemented and verified.
+
+Locale preference should also remain local unless a future account-sync feature is deliberately introduced and documented.
 
 ## Product form
 
