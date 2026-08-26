@@ -1,0 +1,16 @@
+{
+  "name": "generative-rendering-studio-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @grs/web dev",
+    "build": "pnpm --filter @grs/web build",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
