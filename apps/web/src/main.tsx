@@ -13,7 +13,7 @@ import {
   type RasterPixels,
 } from "@grs/core";
 import { OriginalPreview } from "./canvas/OriginalPreview";
-import { canRecordCanvasAnimation, recordCanvasAnimation } from "./export/recordCanvasAnimation";
+import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
 import { useLocale, type Locale } from "./i18n";
 import { WebGLPreview, type GlyphPreset, type PreviewRendererMode } from "./webgl/WebGLPreview";
 import "./styles.css";
@@ -113,6 +113,8 @@ function App() {
   const [morphPlaying, setMorphPlaying] = useState(false);
   const [animationExporting, setAnimationExporting] = useState(false);
   const [animationExportError, setAnimationExportError] = useState<string | null>(null);
+  const [animationExportSucceeded, setAnimationExportSucceeded] = useState(false);
+  const [animationCapability, setAnimationCapability] = useState(() => getCanvasRecordingCapability(null));
 
   useEffect(() => {
     if (!raster) setSourceDetail(t("source.fallbackDetail"));
@@ -143,6 +145,11 @@ function App() {
     }));
   }, [density, ditherStrength, edgeWeight, morphRaster]);
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setAnimationCapability(getCanvasRecordingCapability(previewCanvas.current)));
+    return () => cancelAnimationFrame(frame);
+  }, [rendererMode, raster]);
+
   const basePacked = useMemo(() => field ? pointFieldToFloat32(field) : undefined, [field]);
   const morphPacked = useMemo(() => {
     if (!field || !morphField) return undefined;
@@ -170,7 +177,9 @@ function App() {
   }, [morphDuration, morphEnabled, morphPacked, morphPlaying]);
 
   const loadRaster = async (file: File, target: "source" | "morph") => {
+    if (animationExporting) return;
     setSourceError(null);
+    setAnimationExportSucceeded(false);
     try {
       const pixels = await rasterizeImageFile(file);
       if (target === "morph") {
@@ -188,6 +197,7 @@ function App() {
   };
 
   const addText = () => {
+    if (animationExporting) return;
     const text = window.prompt(t("source.textPrompt"), "GRS");
     if (!text) return;
     try {
@@ -195,12 +205,14 @@ function App() {
       setSourceLabel(text);
       setSourceDetail(t("source.textDetail"));
       setSourceError(null);
+      setAnimationExportSucceeded(false);
     } catch {
       setSourceError(t("source.importFailed"));
     }
   };
 
   const exportStill = () => {
+    if (animationExporting) return;
     const canvas = previewCanvas.current;
     if (!canvas) return;
     const ext = exportFormat === "webp" ? "webp" : "png";
@@ -210,12 +222,16 @@ function App() {
   const exportMorphAnimation = async () => {
     const canvas = previewCanvas.current;
     if (!canvas || !field || !morphField || rendererMode === "original") return;
-    if (!canRecordCanvasAnimation(canvas)) {
+    const capability = getCanvasRecordingCapability(canvas);
+    setAnimationCapability(capability);
+    if (!capability.supported) {
       setAnimationExportError(t("export.animationUnsupported"));
+      setAnimationExportSucceeded(false);
       return;
     }
 
     setAnimationExportError(null);
+    setAnimationExportSucceeded(false);
     setAnimationExporting(true);
     setMorphPlaying(false);
     setMorphEnabled(true);
@@ -229,9 +245,12 @@ function App() {
         onProgress: setMorphProgress,
       });
       downloadBlob(result.blob, `${safeFileStem(sourceLabel)}-to-${safeFileStem(morphLabel || "morph")}-${rendererMode}.${result.extension}`);
+      setAnimationExportSucceeded(true);
     } catch (error) {
+      setAnimationExportSucceeded(false);
       setAnimationExportError(error instanceof Error && error.message === "animation-export-unsupported" ? t("export.animationUnsupported") : t("export.animationFailed"));
     } finally {
+      setMorphProgress(1);
       setAnimationExporting(false);
     }
   };
@@ -239,25 +258,30 @@ function App() {
   const rendererLabel = (mode: StudioRendererMode) => t(`renderer.${mode}` as const);
   const activeModeLabel = rendererLabel(rendererMode);
   const canMorph = Boolean(field && morphField);
-  const canExportAnimation = canMorph && rendererMode !== "original" && !animationExporting;
+  const canExportAnimation = canMorph && rendererMode !== "original" && animationCapability.supported && !animationExporting;
+  const animationFormatLabel = animationCapability.supported
+    ? animationCapability.preferredExtension
+      ? `${animationCapability.preferredExtension.toUpperCase()} · ${animationCapability.preferredMimeType ?? "MediaRecorder"}`
+      : t("export.animationBrowserDefault")
+    : t("export.animationUnsupported");
 
   return (
     <main className="studio-shell">
       <header className="studio-topbar">
         <div className="brand-lockup"><strong>{brand.shortName}</strong><span>{brand.displayName}</span></div>
         <nav className="workspace-tabs" aria-label={t("workspace.label")}><button className="tab active">{t("workspace.compose")}</button><button className="tab">{t("workspace.timeline")}</button><button className="tab">{t("workspace.export")}</button></nav>
-        <div className="top-actions"><button className="icon-button">↶</button><button className="icon-button">↷</button><span className="zoom-label">100%</span><label className="locale-control"><span>{t("language.label")}</span><select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}><option value="en">{t("language.english")}</option><option value="ja">{t("language.japanese")}</option></select></label><button className="render-button" onClick={exportStill}>↓ {t("action.exportStill")}</button></div>
+        <div className="top-actions"><button className="icon-button">↶</button><button className="icon-button">↷</button><span className="zoom-label">100%</span><label className="locale-control"><span>{t("language.label")}</span><select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}><option value="en">{t("language.english")}</option><option value="ja">{t("language.japanese")}</option></select></label><button className="render-button" disabled={animationExporting} onClick={exportStill}>↓ {t("action.exportStill")}</button></div>
       </header>
 
       <aside className="source-panel">
-        <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "source"); event.currentTarget.value = ""; }} />
-        <input ref={morphInput} hidden type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
-        <button className="source-add" onClick={() => fileInput.current?.click()}>＋ {t("action.addSource")}</button>
-        <div className="source-tabs" role="tablist"><button className="source-tab active" onClick={() => fileInput.current?.click()}>{t("source.image")}</button><button className="source-tab" disabled>{t("source.video")}</button><button className="source-tab" onClick={addText}>{t("source.text")}</button><button className="source-tab" onClick={() => fileInput.current?.click()}>{t("source.svg")}</button><button className="source-tab" disabled>{t("source.threeD")}</button></div>
+        <input ref={fileInput} hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "source"); event.currentTarget.value = ""; }} />
+        <input ref={morphInput} hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
+        <button className="source-add" disabled={animationExporting} onClick={() => fileInput.current?.click()}>＋ {t("action.addSource")}</button>
+        <div className="source-tabs" role="tablist"><button className="source-tab active" disabled={animationExporting} onClick={() => fileInput.current?.click()}>{t("source.image")}</button><button className="source-tab" disabled>{t("source.video")}</button><button className="source-tab" disabled={animationExporting} onClick={addText}>{t("source.text")}</button><button className="source-tab" disabled={animationExporting} onClick={() => fileInput.current?.click()}>{t("source.svg")}</button><button className="source-tab" disabled>{t("source.threeD")}</button></div>
         <div className="section-title-row"><strong>{t("source.primary")}</strong></div>
-        <section className="asset-card selected"><div className="asset-thumb" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : ""}`}</span></div><button className="asset-menu">⋮</button></section>
+        <section className="asset-card selected"><div className="asset-thumb" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : ""}`}</span></div><button className="asset-menu" disabled={animationExporting}>⋮</button></section>
         <div className="section-title-row"><strong>{t("source.morphTarget")}</strong></div>
-        {morphLabel ? <section className="asset-card"><div className="asset-thumb" /><div className="asset-meta"><strong>{morphLabel}</strong><span>{morphField ? `${morphField.samples.length.toLocaleString(locale)} ${t("preview.elements")}` : "…"}</span></div></section> : <button className="asset-add-row" onClick={() => morphInput.current?.click()}>＋ {t("action.addMorphTarget")}</button>}
+        {morphLabel ? <section className="asset-card"><div className="asset-thumb" /><div className="asset-meta"><strong>{morphLabel}</strong><span>{morphField ? `${morphField.samples.length.toLocaleString(locale)} ${t("preview.elements")}` : "…"}</span></div></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => morphInput.current?.click()}>＋ {t("action.addMorphTarget")}</button>}
         <div className="panel-divider" /><div className="section-title-row"><strong>{t("layer.title")}</strong><span>⌄</span></div>
         <section className="layer-row selected"><span className="visibility">◉</span><span className="layer-chip" /><div><strong>{t("layer.mainRender")}</strong><small>100%</small></div></section>
         <div className="panel-footer"><span>Schema v{project.schemaVersion}</span><span>Seed {project.seed}</span></div>
@@ -268,20 +292,20 @@ function App() {
         <section className="preview-frame"><div className="canvas-meta"><span>{t("preview.title")}</span><span>{rendererMode === "original" ? t("preview.originalSource") : pointCount ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : t("preview.fallback")}</span><span className="timecode">{morphEnabled ? `${Math.round(morphProgress * 100)}%` : "00:00:00.00"}</span></div>
           {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />}
           <div className="canvas-status"><span>▲ {t("preview.cameraMain")}</span><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>○ {rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
-        <div className="transport-bar"><button disabled={animationExporting} onClick={() => { if (canMorph) { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying(true); } }}>▶</button><button onClick={() => setMorphPlaying(false)}>■</button><button onClick={() => { setMorphPlaying(false); setMorphProgress(0); }}>|◀</button><button onClick={() => { setMorphPlaying(false); setMorphProgress(1); }}>▶|</button><div className="transport-time">{morphEnabled ? t("preview.morph") : t("preview.stage1")}</div><input aria-label={t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={!canMorph || animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><button>🔊</button><button>⛶</button></div>
+        <div className="transport-bar"><button disabled={animationExporting} onClick={() => { if (canMorph) { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying(true); } }}>▶</button><button disabled={animationExporting} onClick={() => setMorphPlaying(false)}>■</button><button disabled={animationExporting} onClick={() => { setMorphPlaying(false); setMorphProgress(0); }}>|◀</button><button disabled={animationExporting} onClick={() => { setMorphPlaying(false); setMorphProgress(1); }}>▶|</button><div className="transport-time">{morphEnabled ? t("preview.morph") : t("preview.stage1")}</div><input aria-label={t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={!canMorph || animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><button disabled={animationExporting}>🔊</button><button disabled={animationExporting}>⛶</button></div>
       </section>
 
       <aside className="inspector-panel">
         <div className="inspector-tabs"><button>{t("inspector.source")}</button><button className="active">{t("inspector.render")}</button><button>{t("inspector.motion")}</button><button>{t("inspector.effects")}</button></div>
         <section className="inspector-section"><h2>{t("inspector.rendererMode")}</h2><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{sourceLabel}</code></label>
-          {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
-          {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
-          <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
+          {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
+          {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
+          <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
         <section className="inspector-section"><h2>{t("morph.title")}</h2>{!canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
-        <section className="inspector-section"><h2>{t("export.still")}</h2><label>{t("export.format")}<select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" onClick={exportStill}>{t("export.currentFrame")}</button></section>
-        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{animationExportError ?? t("export.animationHint")}</p><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportMorphAnimation()}>{animationExporting ? t("export.animationRecording") : t("export.animationButton")}</button></section>
+        <section className="inspector-section"><h2>{t("export.still")}</h2><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
+        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{animationExportError ?? (animationExportSucceeded ? t("export.animationSaved") : t("export.animationHint"))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportMorphAnimation()}>{animationExporting ? t("export.animationRecording") : t("export.animationButton")}</button></section>
         <section className="inspector-section compact-section"><div className="toggle-row"><span>{t("status.localProcessing")}</span><span className="toggle on" /></div><div className="toggle-row"><span>{rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span><span className="toggle on" /></div></section>
       </aside>
     </main>
