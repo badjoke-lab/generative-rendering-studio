@@ -41,6 +41,29 @@ The static host must provide:
 
 Provider-specific settings are deployment details. They must not be encoded into project files, renderer IDs, source IDs, or the rendering core.
 
+The production Vite build uses a relative base (`./`). This keeps the same built artifact valid both at a hostname root and below a path prefix such as a GitHub Pages project site. Deployment must not rewrite the generated HTML merely to repair host-specific asset paths.
+
+## GitHub Pages Development Preview
+
+The repository contains `.github/workflows/deploy-development-preview.yml` for the first public Development Preview. It is deliberately downstream of repository CI rather than a second independent build path.
+
+When a `main` CI run completes successfully, the deployment workflow:
+
+1. downloads the exact `browser-candidate-<commit-sha>` artifact from that successful CI run;
+2. verifies that the candidate contains `index.html`, its asset directory, and path-prefix-portable relative asset references;
+3. uploads that exact directory as the GitHub Pages artifact without rebuilding or rewriting it;
+4. deploys it through the `github-pages` environment.
+
+This preserves the exact-candidate rule: the bytes deployed are the bytes generated and browser-tested by the green `main` CI run.
+
+The expected repository-project URL is:
+
+```text
+https://badjoke-lab.github.io/generative-rendering-studio/
+```
+
+If repository Pages is not yet enabled for GitHub Actions, the deployment job may fail at the Pages API boundary even though the browser candidate itself is valid. In that case, enable GitHub Pages with **Build and deployment -> Source: GitHub Actions** in repository settings and rerun the deployment workflow. No application rebuild or source change is required solely for that repository setting.
+
 ## Cloudflare Pages example
 
 A compatible Cloudflare Pages project can use:
@@ -51,6 +74,8 @@ A compatible Cloudflare Pages project can use:
 - package manager: the repository-declared pnpm version.
 
 A codename-based preview hostname may be used before final branding is selected. Changing the hostname or public product name must not require project-schema migration.
+
+For the Development Preview, prefer deployment of the already tested CI artifact where the provider permits direct static artifact deployment. A provider-side rebuild must be treated as a distinct candidate if its resolved dependencies or bytes differ.
 
 ## Release order
 
