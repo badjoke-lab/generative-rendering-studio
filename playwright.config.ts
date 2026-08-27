@@ -22,9 +22,9 @@ export default defineConfig({
       },
     },
     {
-      name: "firefox",
+      name: "webkit",
       use: {
-        browserName: "firefox",
+        browserName: "webkit",
       },
     },
   ],
