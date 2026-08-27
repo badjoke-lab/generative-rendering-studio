@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { buildStableGlyphIndices, type GlyphPreset } from "./stableGlyphs";
 
 export type PreviewRendererMode = "point" | "glyph" | "particle";
-export type GlyphPreset = "binary" | "density" | "symbols";
+export type { GlyphPreset } from "./stableGlyphs";
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
@@ -160,22 +161,6 @@ function buildFallbackColors(count: number) {
   return colors;
 }
 
-function luminanceAt(colors: Float32Array, index: number) {
-  const base = index * 4;
-  return 0.2126 * (colors[base] ?? 1) + 0.7152 * (colors[base + 1] ?? 1) + 0.0722 * (colors[base + 2] ?? 1);
-}
-
-function buildGlyphIndices(count: number, colors: Float32Array, preset: GlyphPreset) {
-  const glyphs = new Float32Array(count);
-  for (let i = 0; i < count; i += 1) {
-    const l = luminanceAt(colors, i);
-    if (preset === "binary") glyphs[i] = l >= 0.5 ? 1 : 0;
-    else if (preset === "density") glyphs[i] = Math.min(7, Math.floor(l * 8));
-    else glyphs[i] = 2 + ((i * 5 + Math.floor(l * 11)) % 6);
-  }
-  return glyphs;
-}
-
 function hexRgb(hex: string) {
   const clean = hex.replace("#", "").padEnd(6, "0").slice(0, 6);
   return [Number.parseInt(clean.slice(0, 2), 16) / 255, Number.parseInt(clean.slice(2, 4), 16) / 255, Number.parseInt(clean.slice(4, 6), 16) / 255] as const;
@@ -255,7 +240,7 @@ export function WebGLPreview({
     const sourceColors = colors && colors.length === count * 4 ? colors : buildFallbackColors(count);
     const targetPoints = targetPositions && targetPositions.length === points.length ? targetPositions : points;
     const targetSourceColors = targetColors && targetColors.length === sourceColors.length ? targetColors : sourceColors;
-    const glyphs = buildGlyphIndices(count, sourceColors, glyphPreset);
+    const glyphs = buildStableGlyphIndices(points, sourceColors, glyphPreset);
 
     const positionBuffer = bindFloatBuffer(gl, program, "a_position", points, 2);
     const targetPositionBuffer = bindFloatBuffer(gl, program, "a_target_position", targetPoints, 2);
