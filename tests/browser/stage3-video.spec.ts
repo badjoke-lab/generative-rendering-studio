@@ -136,10 +136,13 @@ test("imports a browser-decodable video and transforms changing frames", async (
 
   await page.getByLabel("Video position").fill("80");
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeGreaterThanOrEqual(79);
-  await page.waitForTimeout(200);
+  await expect.poll(async () => {
+    const sample = await brightCentroid(page, 80);
+    return sample.count > 30 && sample.x > pointStart.x + sample.width * 0.4;
+  }).toBe(true);
   const pointSeeked = await brightCentroid(page, 80);
   expect(pointSeeked.count).toBeGreaterThan(30);
-  expect(pointSeeked.x).toBeGreaterThan(pointLater.x + pointLater.width * 0.08);
+  expect(pointSeeked.x).toBeGreaterThan(pointStart.x + pointSeeked.width * 0.4);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-seek-80.png` });
 
   await page.getByRole("button", { name: "Glyph", exact: true }).click();
@@ -237,7 +240,10 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.locator(".canvas-meta")).toContainText("Texture video active");
   await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeGreaterThan(0.12);
   await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeLessThan(0.28);
-  await page.waitForTimeout(150);
+  await expect.poll(async () => {
+    const sample = await colorDominance(page);
+    return sample.red > 20 && sample.red > sample.blue * 4;
+  }).toBe(true);
   const textureAt20 = await colorDominance(page);
   expect(textureAt20.red).toBeGreaterThan(20);
   expect(textureAt20.red).toBeGreaterThan(textureAt20.blue * 4);
@@ -247,7 +253,10 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeGreaterThanOrEqual(79);
   await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeGreaterThan(0.72);
   await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeLessThan(0.88);
-  await page.waitForTimeout(150);
+  await expect.poll(async () => {
+    const sample = await colorDominance(page);
+    return sample.blue > 20 && sample.blue > sample.red * 4;
+  }).toBe(true);
   const textureAt80 = await colorDominance(page);
   expect(textureAt80.blue).toBeGreaterThan(20);
   expect(textureAt80.blue).toBeGreaterThan(textureAt80.red * 4);
