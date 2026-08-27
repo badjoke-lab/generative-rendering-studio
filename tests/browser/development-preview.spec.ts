@@ -17,11 +17,14 @@ function assetName(page: Page, name: string) {
   return page.locator(".asset-meta strong").filter({ hasText: name });
 }
 
-function morphToggle(page: Page) {
-  const section = page.locator("section.inspector-section").filter({
+function morphSection(page: Page) {
+  return page.locator("section.inspector-section").filter({
     has: page.getByRole("heading", { name: "Morph", exact: true }),
   });
-  return section.locator("button.toggle");
+}
+
+function morphToggle(page: Page) {
+  return morphSection(page).locator("button.toggle");
 }
 
 test.beforeEach(async ({ page }) => {
@@ -39,7 +42,7 @@ test("imports supported still sources and switches renderers", async ({ page }) 
 
   for (const renderer of ["Original", "Glyph", "Point", "Particle"]) {
     await page.getByRole("button", { name: renderer, exact: true }).click();
-    await expect(page.getByText(`${renderer} Mode`, { exact: true })).toBeVisible();
+    await expect(page.locator(".canvas-status")).toContainText(`${renderer} Mode`);
   }
 
   const canvas = page.locator("canvas");
@@ -101,8 +104,11 @@ test("records a short Morph animation when Chromium exposes canvas recording", a
     test.skip(true, "Chromium runner does not expose canvas MediaRecorder");
   }
 
-  const durationLabel = page.getByText("Duration", { exact: true }).locator("..");
-  await durationLabel.locator('input[type="range"]').fill("1");
+  const durationControl = morphSection(page)
+    .locator("label")
+    .filter({ hasText: "Duration" })
+    .locator('input[type="range"]');
+  await durationControl.fill("1");
 
   const downloadPromise = page.waitForEvent("download", { timeout: 15_000 });
   await animationButton.click();
