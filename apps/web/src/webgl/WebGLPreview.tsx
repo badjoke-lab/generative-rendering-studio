@@ -32,7 +32,7 @@ void main() {
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
   v_phase = wave;
-  v_color = u_use_source_color == 1 ? sourceColor : vec4(u_tint, 1.0);
+  v_color = u_use_source_color == 1 ? sourceColor : vec4(u_tint, sourceColor.a);
 }`;
 
 const pointFragmentShaderSource = `#version 300 es

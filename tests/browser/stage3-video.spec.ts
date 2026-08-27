@@ -11,6 +11,14 @@ const movingSquareWebm = Buffer.from(
   "base64",
 );
 
+// Generated with ffmpeg: 160×100, 10 fps, 2.0 s VP9 WebM.
+// One half of every frame is white and the other half is black so mask and
+// inverted-mask output can be distinguished deterministically.
+const leftHalfMaskWebm = Buffer.from(
+  readFileSync("tests/fixtures/stage3-left-half-mask.webm.base64", "utf8").trim(),
+  "base64",
+);
+
 async function brightCentroid(page: Page, threshold = 80) {
   return page.locator(".preview-frame canvas").first().evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
     const copy = document.createElement("canvas");
@@ -39,6 +47,12 @@ async function brightCentroid(page: Page, threshold = 80) {
       height: copy.height,
     };
   }, threshold);
+}
+
+async function auxiliaryVideoProgress(page: Page) {
+  return page.locator("video.source-video-element").nth(1).evaluate((video: HTMLVideoElement) => (
+    Number.isFinite(video.duration) && video.duration > 0 ? video.currentTime / video.duration : 0
+  ));
 }
 
 test("imports a browser-decodable video and transforms changing frames", async ({ page }) => {
@@ -129,4 +143,50 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await page.getByRole("button", { name: "Show original under transform" }).click();
   await expect(page.locator('[data-video-composite="true"]')).toHaveCount(0);
   await expect(page.locator(".preview-frame canvas")).toHaveCount(1);
+
+  const maskVideoInput = page.locator('input[data-source-kind="video-mask"]');
+  await maskVideoInput.setInputFiles({ name: "stage3-left-half-mask.webm", mimeType: "video/webm", buffer: leftHalfMaskWebm });
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator('[data-source-role="mask"]')).toContainText("stage3-left-half-mask.webm");
+  await expect(page.locator(".canvas-meta")).toContainText("Mask video active");
+  await expect(page.getByLabel("Mask strength")).toHaveValue("100");
+  await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => auxiliaryVideoProgress(page)).toBeGreaterThan(0.72);
+  await expect.poll(() => auxiliaryVideoProgress(page)).toBeLessThan(0.88);
+  await page.waitForTimeout(150);
+
+  const maskedNormal = await brightCentroid(page, 80);
+  await page.getByRole("button", { name: "Invert mask" }).click();
+  await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(100);
+  const maskedInverted = await brightCentroid(page, 80);
+  const strongerMaskCount = Math.max(maskedNormal.count, maskedInverted.count);
+  const weakerMaskCount = Math.min(maskedNormal.count, maskedInverted.count);
+  expect(strongerMaskCount).toBeGreaterThan(30);
+  expect(weakerMaskCount).toBeLessThan(strongerMaskCount * 0.35);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-mask-inverted-seek-80.png` });
+  await page.screenshot({ path: `${evidenceDir}/stage3-video-mask-ui-seek-80.png`, fullPage: true });
+
+  await page.getByLabel("Mask strength").fill("0");
+  await page.waitForTimeout(100);
+  const zeroStrength = await brightCentroid(page, 80);
+  expect(zeroStrength.count).toBeGreaterThan(30);
+  expect(zeroStrength.count).toBeGreaterThan(pointSeeked.count * 0.45);
+
+  await page.getByLabel("Mask strength").fill("100");
+  await page.getByRole("button", { name: "Invert mask" }).click();
+  await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "false");
+  await page.getByLabel("Video position").fill("20");
+  await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeLessThanOrEqual(21);
+  await expect.poll(() => auxiliaryVideoProgress(page)).toBeGreaterThan(0.12);
+  await expect.poll(() => auxiliaryVideoProgress(page)).toBeLessThan(0.28);
+  await page.waitForTimeout(150);
+  const syncedVisible = await brightCentroid(page, 80);
+  expect(syncedVisible.count).toBeGreaterThan(30);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-mask-synced-seek-20.png` });
+
+  await page.getByRole("button", { name: "Remove mask video" }).click();
+  await expect(page.locator('[data-source-role="mask"]')).toHaveCount(0);
+  await expect(page.getByLabel("Mask strength")).toHaveCount(0);
+  await expect(page.locator(".canvas-meta")).not.toContainText("Mask video active");
 });
