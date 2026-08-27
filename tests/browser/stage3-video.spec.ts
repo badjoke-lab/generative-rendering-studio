@@ -59,6 +59,12 @@ test("imports a browser-decodable video and transforms changing frames", async (
   expect(originalStart.count).toBeGreaterThan(100);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-original-start.png` });
 
+  await page.getByRole("button", { name: "Glyph", exact: true }).click();
+  await page.getByLabel("Character set").selectOption("symbols");
+  const glyphStart = await brightCentroid(page, 60);
+  expect(glyphStart.count).toBeGreaterThan(20);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-glyph-symbols-start.png` });
+
   await page.getByRole("button", { name: "Point", exact: true }).click();
   const pointStart = await brightCentroid(page, 80);
   expect(pointStart.count).toBeGreaterThan(30);
@@ -81,6 +87,13 @@ test("imports a browser-decodable video and transforms changing frames", async (
   expect(pointSeeked.count).toBeGreaterThan(30);
   expect(pointSeeked.x).toBeGreaterThan(pointLater.x + pointLater.width * 0.08);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-seek-80.png` });
+
+  await page.getByRole("button", { name: "Glyph", exact: true }).click();
+  await page.getByLabel("Character set").selectOption("symbols");
+  const glyphSeeked = await brightCentroid(page, 60);
+  expect(glyphSeeked.count).toBeGreaterThan(20);
+  expect(glyphSeeked.x).toBeGreaterThan(glyphStart.x + glyphStart.width * 0.4);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-glyph-symbols-seek-80.png` });
 
   await page.getByRole("button", { name: "Original", exact: true }).click();
   await expect(page.locator(".canvas-status")).toContainText("Original Mode");
