@@ -104,8 +104,8 @@ function formatTime(seconds: number) {
 function App() {
   const { locale, setLocale, t } = useLocale();
   const fileInput = useRef<HTMLInputElement>(null);
-  const videoInput = useRef<HTMLInputElement>(null);
   const morphInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const videoElement = useRef<HTMLVideoElement>(null);
   const videoUrl = useRef<string | null>(null);
@@ -286,8 +286,6 @@ function App() {
       video.muted = true;
       video.playsInline = true;
       video.preload = "auto";
-      video.src = url;
-      video.load();
       await new Promise<void>((resolve, reject) => {
         const onLoaded = () => { cleanup(); resolve(); };
         const onError = () => { cleanup(); reject(new Error("video-decode-failed")); };
@@ -297,6 +295,8 @@ function App() {
         };
         video.addEventListener("loadeddata", onLoaded, { once: true });
         video.addEventListener("error", onError, { once: true });
+        video.src = url;
+        video.load();
       });
       video.currentTime = 0;
       const pixels = rasterizeVideoElement(video);
@@ -431,8 +431,8 @@ function App() {
 
       <aside className="source-panel">
         <input ref={fileInput} data-source-kind="still" hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "source"); event.currentTarget.value = ""; }} />
-        <input ref={videoInput} data-source-kind="video" hidden disabled={animationExporting} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadVideo(file); event.currentTarget.value = ""; }} />
         <input ref={morphInput} data-source-kind="morph" hidden disabled={animationExporting || isVideoSource} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
+        <input ref={videoInput} data-source-kind="video" hidden disabled={animationExporting} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadVideo(file); event.currentTarget.value = ""; }} />
 
         <section className="quickstart-card" aria-label={t("guide.title")}>
           <strong>{t("guide.title")}</strong>
@@ -451,6 +451,7 @@ function App() {
           <button className="source-secondary" disabled={animationExporting} onClick={addText}>＋ {t("source.text")}</button>
         </div>
         <p className="supported-note">{t("source.supportedMedia")}</p>
+        {sourceError && <p className="supported-note stage3-note" role="alert">{sourceError}</p>}
 
         <div className="section-title-row source-heading"><strong>{t("source.primary")}</strong></div>
         {hasSource ? <section className="asset-card selected"><div className="asset-thumb" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : ""}`}</span></div><button className="asset-menu" disabled={animationExporting}>⋮</button></section> : <button className="empty-source-card" disabled={animationExporting} onClick={() => fileInput.current?.click()}><span className="empty-source-plus">＋</span><span><strong>{t("source.emptyTitle")}</strong><small>{t("source.emptyDetail")}</small></span></button>}
