@@ -23,10 +23,10 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Run Development Preview Chromium smoke
         run: pnpm test:browser --project=chromium
-      - name: Install Firefox for focused second-browser check
-        run: pnpm exec playwright install --with-deps firefox
-      - name: Run focused Firefox release-candidate check
-        run: pnpm test:browser --project=firefox --grep "second-browser critical"
+      - name: Install WebKit for focused second-browser check
+        run: pnpm exec playwright install --with-deps webkit
+      - name: Run focused WebKit release-candidate check
+        run: pnpm test:browser --project=webkit --grep "webkit second-browser critical"
       - name: Upload Development Preview visual and output evidence
         if: always()
         uses: actions/upload-artifact@v4
