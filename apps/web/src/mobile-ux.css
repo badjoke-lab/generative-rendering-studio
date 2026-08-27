@@ -59,6 +59,15 @@ body { overflow-x: hidden; }
 .mode-pill { margin-left: auto; border: 1px solid #2e3550; border-radius: 999px; background: #151a25; color: #d8d1ff; padding: 5px 8px; font-size: 9px; white-space: nowrap; }
 .transport-bar { grid-template-columns: repeat(4,32px) auto minmax(160px,1fr); }
 
+/* No fake render before a source exists. Keep the editor honest about its state. */
+body:has(.empty-source-card) .preview-frame .preview-canvas { visibility: hidden; }
+body:has(.empty-source-card) .preview-frame .canvas-status { display: none; }
+body:has(.empty-source-card) .preview-frame .canvas-meta span:nth-child(2),
+body:has(.empty-source-card) .preview-frame .canvas-meta .timecode { visibility: hidden; }
+body:has(.empty-source-card) .preview-frame { background: radial-gradient(circle at 50% 48%, rgba(122,66,255,.07), transparent 34%), #07090e; }
+body:has(.empty-source-card) .inspector-panel { opacity: .46; pointer-events: none; user-select: none; }
+body:has(.empty-source-card) .transport-bar { opacity: .46; }
+
 .guided-section .renderer-segmented { margin-top: 10px; }
 .section-guide { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 9px; align-items: start; margin-bottom: 8px; }
 .section-guide h2 { margin: 0 0 3px; }
