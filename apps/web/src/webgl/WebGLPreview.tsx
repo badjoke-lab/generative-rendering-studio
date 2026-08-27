@@ -196,6 +196,7 @@ export function WebGLPreview({
   background = "#090b10",
   useSourceColor = false,
   glyphPreset = "binary",
+  transparentBackground = false,
   canvasRef: externalCanvasRef,
 }: {
   positions?: Float32Array;
@@ -209,6 +210,7 @@ export function WebGLPreview({
   background?: string;
   useSourceColor?: boolean;
   glyphPreset?: GlyphPreset;
+  transparentBackground?: boolean;
   canvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }) {
   const internalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -220,7 +222,7 @@ export function WebGLPreview({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const gl = canvas.getContext("webgl2", { alpha: false, antialias: true, preserveDrawingBuffer: true });
+    const gl = canvas.getContext("webgl2", { alpha: true, antialias: true, preserveDrawingBuffer: true });
     if (!gl) {
       setError("WebGL2 is not available in this browser/device.");
       return;
@@ -271,7 +273,8 @@ export function WebGLPreview({
         canvas.height = height;
       }
       gl.viewport(0, 0, width, height);
-      gl.clearColor(bgRgb[0], bgRgb[1], bgRgb[2], 1);
+      if (transparentBackground) gl.clearColor(0, 0, 0, 0);
+      else gl.clearColor(bgRgb[0], bgRgb[1], bgRgb[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
       gl.uniform1f(time, now / 1000);
@@ -299,7 +302,7 @@ export function WebGLPreview({
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, targetColors, targetPositions, tint, useSourceColor]);
+  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;

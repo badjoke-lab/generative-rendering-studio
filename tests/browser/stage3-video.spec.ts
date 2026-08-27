@@ -12,7 +12,7 @@ const movingSquareWebm = Buffer.from(
 );
 
 async function brightCentroid(page: Page, threshold = 80) {
-  return page.locator("canvas").evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
+  return page.locator(".preview-frame canvas").first().evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
     const copy = document.createElement("canvas");
     copy.width = canvas.width;
     copy.height = canvas.height;
@@ -102,8 +102,31 @@ test("imports a browser-decodable video and transforms changing frames", async (
   expect(originalSeeked.x).toBeGreaterThan(originalStart.x + originalStart.width * 0.4);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-original-seek-80.png` });
 
-  const downloadPromise = page.waitForEvent("download");
+  const originalDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export current frame", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toContain("stage3-moving-square-webm-original.png");
+  const originalDownload = await originalDownloadPromise;
+  expect(originalDownload.suggestedFilename()).toContain("stage3-moving-square-webm-original.png");
+
+  await page.getByRole("button", { name: "Point", exact: true }).click();
+  await page.getByRole("button", { name: "Show original under transform" }).click();
+  await expect(page.locator('[data-video-composite="true"]')).toBeVisible();
+  await expect(page.locator(".preview-frame canvas")).toHaveCount(2);
+  await page.getByLabel("Original opacity").fill("45");
+  await expect(page.locator(".video-composite-underlay")).toHaveCSS("opacity", "0.45");
+  await expect(page.locator(".canvas-meta")).toContainText("Original + transformed");
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-composite-seek-80.png` });
+
+  const compositeDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export current frame", exact: true }).click();
+  const compositeDownload = await compositeDownloadPromise;
+  expect(compositeDownload.suggestedFilename()).toContain("stage3-moving-square-webm-point-composite.png");
+  const compositePath = await compositeDownload.path();
+  expect(compositePath).not.toBeNull();
+  const compositeBytes = readFileSync(compositePath!);
+  expect(compositeBytes.length).toBeGreaterThan(1000);
+  expect(Array.from(compositeBytes.subarray(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+
+  await page.getByRole("button", { name: "Show original under transform" }).click();
+  await expect(page.locator('[data-video-composite="true"]')).toHaveCount(0);
+  await expect(page.locator(".preview-frame canvas")).toHaveCount(1);
 });
