@@ -11,15 +11,15 @@ test("390px Japanese first-run flow is understandable and does not overflow", as
   await expect(page.getByText("まずここから", { exact: true })).toBeVisible();
   await expect(page.getByText("素材を追加 → 見た目を選ぶ → 必要なら2つ目の素材へ変形 → 保存、の順で使います。", { exact: true })).toBeVisible();
   await expect(page.getByText("まだ素材がありません", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "画像 / SVGを追加", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "テキスト", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /画像 \/ SVGを追加/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /テキスト/ })).toBeVisible();
 
   await expect(page.getByRole("button", { name: "動画", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "3D", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "タイムライン", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "エフェクト", exact: true })).toHaveCount(0);
 
-  const saveButton = page.getByRole("button", { name: "↓ 保存", exact: true });
+  const saveButton = page.getByRole("button", { name: "保存", exact: true });
   await expect(saveButton).toBeVisible();
   await expect(saveButton).toBeDisabled();
 
