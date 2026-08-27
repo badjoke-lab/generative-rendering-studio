@@ -71,7 +71,6 @@ export const ja: Record<TranslationKey, string> = {
   "inspector.dither": "粒状感",
   "inspector.renderColor": "描画色",
   "inspector.sourceColor": "元の色を使う",
-  "inspector.textureColorActive": "テクスチャの色",
   "inspector.background": "背景",
   "morph.title": "モーフ",
   "morph.enabled": "変形を有効にする",
