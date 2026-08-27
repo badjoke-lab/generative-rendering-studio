@@ -43,6 +43,13 @@ function orderedDither(x: number, y: number) {
   return (value + 0.5) / 16 - 0.5;
 }
 
+function rasterAspectScale(width: number, height: number) {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  if (safeWidth >= safeHeight) return [1, safeHeight / safeWidth] as const;
+  return [safeWidth / safeHeight, 1] as const;
+}
+
 export function sampleRasterToPointField(
   raster: RasterPixels,
   options: RasterSampleOptions = {},
@@ -55,6 +62,7 @@ export function sampleRasterToPointField(
   const total = Math.max(1, raster.width * raster.height);
   const step = Math.max(1, Math.ceil(Math.sqrt(total / maxPoints)));
   const samples = [];
+  const [aspectScaleX, aspectScaleY] = rasterAspectScale(raster.width, raster.height);
 
   for (let y = 0; y < raster.height; y += step) {
     for (let x = 0; x < raster.width; x += step) {
@@ -69,8 +77,10 @@ export function sampleRasterToPointField(
       const threshold = luminanceThreshold + orderedDither(x, y) * ditherStrength * 0.16;
       if (a < alphaThreshold || importance < threshold) continue;
 
-      const px = raster.width <= 1 ? 0 : (x / (raster.width - 1)) * 2 - 1;
-      const py = raster.height <= 1 ? 0 : 1 - (y / (raster.height - 1)) * 2;
+      const normalizedX = raster.width <= 1 ? 0 : (x / (raster.width - 1)) * 2 - 1;
+      const normalizedY = raster.height <= 1 ? 0 : 1 - (y / (raster.height - 1)) * 2;
+      const px = normalizedX * aspectScaleX;
+      const py = normalizedY * aspectScaleY;
       const color: Rgba = [r / 255, g / 255, b / 255, a];
       samples.push({
         position: [px, py, 0] as const,

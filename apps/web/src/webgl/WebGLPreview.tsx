@@ -15,6 +15,7 @@ uniform float u_morph_progress;
 uniform int u_mode;
 uniform int u_use_source_color;
 uniform vec3 u_tint;
+uniform vec2 u_view_scale;
 flat out int v_glyph;
 out float v_phase;
 out vec4 v_color;
@@ -25,7 +26,7 @@ void main() {
   float wave = sin(u_time * 1.4 + sourcePosition.x * 8.0 + sourcePosition.y * 5.0);
   float pulse = u_mode == 2 ? 0.024 * wave : 0.012 * wave;
   vec2 drift = u_mode == 2 ? vec2(cos(u_time + sourcePosition.y * 9.0), sin(u_time * 0.8 + sourcePosition.x * 7.0)) * 0.005 : vec2(0.0);
-  vec2 p = sourcePosition * (0.94 + pulse) + drift;
+  vec2 p = (sourcePosition * (0.94 + pulse) + drift) * u_view_scale;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
@@ -268,6 +269,7 @@ export function WebGLPreview({
     const modeUniform = gl.getUniformLocation(program, "u_mode");
     const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
     const tintUniform = gl.getUniformLocation(program, "u_tint");
+    const viewScaleUniform = gl.getUniformLocation(program, "u_view_scale");
     const tintRgb = hexRgb(tint);
     const bgRgb = hexRgb(background);
     gl.useProgram(program);
@@ -292,6 +294,10 @@ export function WebGLPreview({
       gl.uniform1i(modeUniform, mode === "particle" ? 2 : mode === "glyph" ? 1 : 0);
       gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
       gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
+      const viewportAspect = width / Math.max(1, height);
+      const viewScaleX = viewportAspect >= 1 ? 1 / viewportAspect : 1;
+      const viewScaleY = viewportAspect >= 1 ? 1 : viewportAspect;
+      gl.uniform2f(viewScaleUniform, viewScaleX, viewScaleY);
       const baseSize = mode === "glyph" ? 8 : mode === "particle" ? 5.5 : 2.4;
       gl.uniform1f(pointSize, baseSize * Math.max(0.4, elementSize) * dpr);
       gl.drawArrays(gl.POINTS, 0, count);
