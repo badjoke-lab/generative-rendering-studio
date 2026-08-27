@@ -19,6 +19,15 @@ const leftHalfMaskWebm = Buffer.from(
   "base64",
 );
 
+// Generated with ffmpeg: 160×100, 10 fps, 4.0 s VP9 WebM.
+// The first half is red and the second half blue. Because the main fixture is
+// only 2.0 s, seeking both to 20%/80% proves normalized progress synchronization
+// rather than accidental absolute-time synchronization.
+const redBlueTextureWebm = Buffer.from(
+  readFileSync("tests/fixtures/stage3-red-blue-texture.webm.base64", "utf8").trim(),
+  "base64",
+);
+
 async function brightCentroid(page: Page, threshold = 80) {
   return page.locator(".preview-frame canvas").first().evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
     const copy = document.createElement("canvas");
@@ -49,8 +58,30 @@ async function brightCentroid(page: Page, threshold = 80) {
   }, threshold);
 }
 
-async function auxiliaryVideoProgress(page: Page) {
-  return page.locator("video.source-video-element").nth(1).evaluate((video: HTMLVideoElement) => (
+async function colorDominance(page: Page) {
+  return page.locator(".preview-frame canvas").first().evaluate((canvas: HTMLCanvasElement) => {
+    const copy = document.createElement("canvas");
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const ctx = copy.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("color-canvas-unavailable");
+    ctx.drawImage(canvas, 0, 0);
+    const pixels = ctx.getImageData(0, 0, copy.width, copy.height).data;
+    let red = 0;
+    let blue = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      const r = pixels[offset] ?? 0;
+      const g = pixels[offset + 1] ?? 0;
+      const b = pixels[offset + 2] ?? 0;
+      if (r > 70 && r > g * 1.35 && r > b * 1.35) red += 1;
+      if (b > 70 && b > g * 1.35 && b > r * 1.35) blue += 1;
+    }
+    return { red, blue };
+  });
+}
+
+async function auxiliaryVideoProgress(page: Page, index = 1) {
+  return page.locator("video.source-video-element").nth(index).evaluate((video: HTMLVideoElement) => (
     Number.isFinite(video.duration) && video.duration > 0 ? video.currentTime / video.duration : 0
   ));
 }
@@ -151,8 +182,8 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.locator(".canvas-meta")).toContainText("Mask video active");
   await expect(page.getByLabel("Mask strength")).toHaveValue("100");
   await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "false");
-  await expect.poll(() => auxiliaryVideoProgress(page)).toBeGreaterThan(0.72);
-  await expect.poll(() => auxiliaryVideoProgress(page)).toBeLessThan(0.88);
+  await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeGreaterThan(0.72);
+  await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeLessThan(0.88);
   await page.waitForTimeout(150);
 
   const maskedNormal = await brightCentroid(page, 80);
@@ -178,8 +209,8 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "false");
   await page.getByLabel("Video position").fill("20");
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeLessThanOrEqual(21);
-  await expect.poll(() => auxiliaryVideoProgress(page)).toBeGreaterThan(0.12);
-  await expect.poll(() => auxiliaryVideoProgress(page)).toBeLessThan(0.28);
+  await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeGreaterThan(0.12);
+  await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeLessThan(0.28);
   await page.waitForTimeout(150);
   const syncedVisible = await brightCentroid(page, 80);
   expect(syncedVisible.count).toBeGreaterThan(30);
@@ -189,4 +220,32 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.locator('[data-source-role="mask"]')).toHaveCount(0);
   await expect(page.getByLabel("Mask strength")).toHaveCount(0);
   await expect(page.locator(".canvas-meta")).not.toContainText("Mask video active");
+
+  const textureVideoInput = page.locator('input[data-source-kind="video-texture"]');
+  await textureVideoInput.setInputFiles({ name: "stage3-red-blue-texture.webm", mimeType: "video/webm", buffer: redBlueTextureWebm });
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator('[data-source-role="texture"]')).toContainText("stage3-red-blue-texture.webm");
+  await expect(page.locator(".canvas-meta")).toContainText("Texture video active");
+  await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeGreaterThan(0.12);
+  await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeLessThan(0.28);
+  await page.waitForTimeout(150);
+  const textureAt20 = await colorDominance(page);
+  expect(textureAt20.red).toBeGreaterThan(20);
+  expect(textureAt20.red).toBeGreaterThan(textureAt20.blue * 4);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-texture-synced-seek-20.png` });
+
+  await page.getByLabel("Video position").fill("80");
+  await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeGreaterThanOrEqual(79);
+  await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeGreaterThan(0.72);
+  await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeLessThan(0.88);
+  await page.waitForTimeout(150);
+  const textureAt80 = await colorDominance(page);
+  expect(textureAt80.blue).toBeGreaterThan(20);
+  expect(textureAt80.blue).toBeGreaterThan(textureAt80.red * 4);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-texture-synced-seek-80.png` });
+  await page.screenshot({ path: `${evidenceDir}/stage3-video-texture-ui-seek-80.png`, fullPage: true });
+
+  await page.getByRole("button", { name: "Remove texture video" }).click();
+  await expect(page.locator('[data-source-role="texture"]')).toHaveCount(0);
+  await expect(page.locator(".canvas-meta")).not.toContainText("Texture video active");
 });
