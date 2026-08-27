@@ -31,7 +31,7 @@ Video import, procedural sources, full Layers/Timeline/Keyframes, audio/data mod
 
 The real-browser CI uses Playwright with the production Vite build. Failure traces/screenshots are retained as CI artifacts so a browser regression is inspectable rather than reduced to a manual claim.
 
-The release lane also retains a `preview-evidence-<commit>` artifact containing representative renderer frames, Morph frames at 0/50/100%, Japanese UI, the animation final frame, and the 390x844 viewport. This evidence is intentionally visual: it can expose regressions that DOM assertions cannot. The first retained evidence caught aspect distortion in the transformed WebGL renderers; the current candidate corrects source-space and viewport-space aspect handling and the corrected evidence has been inspected.
+The release lane also retains a `preview-evidence-<commit>` artifact containing representative renderer frames, Morph frames at 0/50/100%, Japanese UI, the animation final frame, the 390x844 viewport, downloaded still/animation outputs, animation replay frames, recording lock/recovery frames, and focused second-browser evidence. This evidence is intentionally visual and file-based: it can expose regressions that DOM assertions cannot. The first retained evidence caught aspect distortion in the transformed WebGL renderers; the current candidate corrects source-space and viewport-space aspect handling and the corrected evidence has been inspected.
 
 ## Studio behavior gates
 
@@ -48,17 +48,19 @@ The release lane also retains a `preview-evidence-<commit>` artifact containing 
 - [x] Source, renderer, appearance, Morph, transport and still-export mutation controls are locked during animation recording.
 - [x] Animation export reports success/failure and leaves the preview on the final Morph frame after a successful recording.
 
-## Remaining release-candidate verification
+## Release-candidate verification
 
-Repository CI should perform the deterministic and repeatable Chromium path. The following checks still benefit from human observation on the exact candidate intended for public deployment:
+Repository CI performs the deterministic and repeatable Chromium path. The file and visual checks below have also been performed against the exact browser candidate intended for the Development Preview:
 
 - [x] Visually confirm Original/Glyph/Point/Particle output has no blank, corrupted, or obviously unstable canvas on the retained Chromium evidence.
-- [ ] Visually confirm Source A -> Source B Morph reaches both endpoints without an obvious correspondence reset during playback.
-- [ ] Open downloaded PNG/WebP files and confirm they decode correctly.
-- [ ] Open one downloaded short Morph animation, when recording is supported, and confirm non-zero duration and the complete A-to-B transition.
-- [ ] Confirm recording-time control lock/recovery feels correct in the browser rather than only being DOM-disabled.
-- [ ] Repeat the critical import/Morph/export path in a second browser family where practical.
+- [x] Visually confirm Source A -> Source B Morph reaches both endpoints without an obvious correspondence reset during playback.
+- [x] Open downloaded PNG/WebP files and confirm they decode correctly.
+- [x] Open one downloaded short Morph animation, when recording is supported, and confirm non-zero duration and the complete A-to-B transition.
+- [x] Confirm recording-time control lock/recovery feels correct in the browser rather than only being DOM-disabled.
+- [x] Repeat the critical import/Morph/export path in a second browser family where practical. The focused second-family gate uses WebKit; hosted headless Firefox was also probed but did not expose WebGL2 in that runner environment.
 - [x] Visually inspect the retained 390x844 Chromium viewport for catastrophic overlap or inaccessible controls; full mobile authoring is not yet promised.
+
+The downloaded PNG and WebP outputs are decoded during the browser gate and retained for independent inspection. The downloaded short animation is replayed as a real video resource, sampled through the A-to-B transition, and retained together with start/middle/end replay frames. Recording-time and recovered UI frames are retained separately so the control-state transition remains inspectable.
 
 ## Deployment gate
 
