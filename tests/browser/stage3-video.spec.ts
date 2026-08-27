@@ -28,6 +28,15 @@ const redBlueTextureWebm = Buffer.from(
   "base64",
 );
 
+// Generated with ffmpeg: 160×100, 10 fps, 4.0 s VP9 WebM.
+// The first half is black and the second half white. With the 2.0 s main video,
+// 20%/80% proves normalized synchronization while producing clearly different
+// luminance values for the analysis driver.
+const blackWhiteAnalysisWebm = Buffer.from(
+  readFileSync("tests/fixtures/stage3-black-white-analysis.webm.base64", "utf8").trim(),
+  "base64",
+);
+
 async function brightCentroid(page: Page, threshold = 80) {
   return page.locator(".preview-frame canvas").first().evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
     const copy = document.createElement("canvas");
@@ -248,4 +257,40 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await page.getByRole("button", { name: "Remove texture video" }).click();
   await expect(page.locator('[data-source-role="texture"]')).toHaveCount(0);
   await expect(page.locator(".canvas-meta")).not.toContainText("Texture video active");
+
+  const analysisVideoInput = page.locator('input[data-source-kind="video-analysis"]');
+  await analysisVideoInput.setInputFiles({ name: "stage3-black-white-analysis.webm", mimeType: "video/webm", buffer: blackWhiteAnalysisWebm });
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator('[data-source-role="analysis"]')).toContainText("stage3-black-white-analysis.webm");
+  await expect(page.locator(".canvas-meta")).toContainText("Analysis video active");
+  await expect(page.getByLabel("Analysis strength")).toHaveValue("100");
+  await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeGreaterThan(0.72);
+  await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeLessThan(0.88);
+  await expect(page.locator("label").filter({ hasText: "Brightness" })).toContainText("100%");
+  await page.waitForTimeout(150);
+  const analysisBright = await brightCentroid(page, 80);
+  expect(analysisBright.count).toBeGreaterThan(50);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-analysis-bright-seek-80.png` });
+  await page.screenshot({ path: `${evidenceDir}/stage3-video-analysis-ui-seek-80.png`, fullPage: true });
+
+  await page.getByLabel("Video position").fill("20");
+  await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeLessThanOrEqual(21);
+  await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeGreaterThan(0.12);
+  await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeLessThan(0.28);
+  await expect(page.locator("label").filter({ hasText: "Brightness" })).toContainText("0%");
+  await page.waitForTimeout(150);
+  const analysisDark = await brightCentroid(page, 80);
+  expect(analysisDark.count).toBeGreaterThan(5);
+  expect(analysisBright.count).toBeGreaterThan(analysisDark.count * 2);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-analysis-dark-seek-20.png` });
+
+  await page.getByLabel("Analysis strength").fill("0");
+  await page.waitForTimeout(120);
+  const analysisNeutral = await brightCentroid(page, 80);
+  expect(analysisNeutral.count).toBeGreaterThan(analysisDark.count * 1.5);
+
+  await page.getByRole("button", { name: "Remove analysis video" }).click();
+  await expect(page.locator('[data-source-role="analysis"]')).toHaveCount(0);
+  await expect(page.getByLabel("Analysis strength")).toHaveCount(0);
+  await expect(page.locator(".canvas-meta")).not.toContainText("Analysis video active");
 });
