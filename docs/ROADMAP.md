@@ -96,23 +96,24 @@ Outcome: users can load two visual sources and produce a coherent editable trans
 
 User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation when the current browser/device supports canvas recording.
 
-Status: completed and merged to main. The Stage 1 + Stage 2 browser build is the Development Preview candidate, and its release-candidate checks are complete in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`. Public deployment must still use an exact green main candidate.
+Status: completed and merged to main. The Stage 1 + Stage 2 browser build is publicly deployed as the Development Preview, and its release-candidate checks are complete in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`.
 
-## Development Preview preparation — current release lane
+## Development Preview release lane — closed
 
 - keep repository CI green on the exact deployment candidate;
 - verify the Stage 1 + Stage 2 workflow in real supported browsers;
 - verify downloaded still and short animation files actually open and play;
 - verify unsupported export paths fail safely;
-- verify narrow viewport behavior has no catastrophic breakage;
+- verify narrow/mobile first-run behavior does not overflow, hide the preview, or expose non-working later-stage controls;
 - prepare provider-independent static deployment settings and public deployment documentation;
-- deploy only the build that passed the manual browser smoke gate.
+- deploy only the build that passed the browser and visual smoke gates;
+- verify the publicly served HTML, JavaScript, and CSS bytes match the exact green candidate.
 
 Outcome: the first public browser build is a tested Stage 1 + Stage 2 Development Preview rather than an unverified repository build.
 
-User behavior: open the public browser application without installing desktop software; import supported still sources or create text; render as Original/Glyph/Point/Particle; configure and preview A-to-B Morph; switch English/Japanese; export still frames and, where supported, a short Morph animation locally.
+User behavior: open the public browser application without installing desktop software; follow the first-run flow to add a supported still source or create text; render as Original/Glyph/Point/Particle; optionally configure and preview A-to-B Morph; switch English/Japanese; export still frames and, where supported, a short Morph animation locally.
 
-Status: release-candidate verification complete. Public deployment remains pending and must use an exact green main candidate.
+Status: complete. The Development Preview is publicly deployed, the first-run mobile usability correction is included, and the deployed static files are verified against the exact green main candidate.
 
 ## Stage 3 — Existing-video transformation
 
@@ -126,7 +127,7 @@ Outcome: existing footage becomes a first-class source that can remain original 
 
 User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
 
-Status: starts after the Development Preview release lane is closed; not yet implemented.
+Status: Development Preview release lane is closed; Stage 3 is the next implementation stage and has not yet been implemented.
 
 ## Stage 4 — Procedural sources
 
