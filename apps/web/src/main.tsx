@@ -298,13 +298,12 @@ function App() {
         video.src = url;
         video.load();
       });
-      video.currentTime = 0;
       const pixels = rasterizeVideoElement(video);
       setSourceKind("video");
       setRaster(pixels);
       setSourceLabel(file.name);
       setVideoDuration(Number.isFinite(video.duration) ? video.duration : 0);
-      setVideoTime(0);
+      setVideoTime(video.currentTime);
       setSourceDetail(`${t("source.video")} · ${video.videoWidth} × ${video.videoHeight}${Number.isFinite(video.duration) ? ` · ${video.duration.toFixed(2)} ${t("morph.seconds")}` : ""}`);
     } catch {
       clearVideoSource();
@@ -335,12 +334,16 @@ function App() {
     video.pause();
     setVideoPlaying(false);
     const nextTime = Math.min(video.duration, Math.max(0, progress * video.duration));
-    video.currentTime = nextTime;
     setVideoTime(nextTime);
+    if (Math.abs(video.currentTime - nextTime) < 0.001) {
+      try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
+      return;
+    }
     const onSeeked = () => {
       try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
     };
     video.addEventListener("seeked", onSeeked, { once: true });
+    video.currentTime = nextTime;
   };
 
   const playVideo = async () => {
