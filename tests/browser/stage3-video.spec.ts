@@ -136,10 +136,13 @@ test("imports a browser-decodable video and transforms changing frames", async (
 
   await page.getByLabel("Video position").fill("80");
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeGreaterThanOrEqual(79);
-  await page.waitForTimeout(200);
+  await expect.poll(async () => {
+    const sample = await brightCentroid(page, 80);
+    return sample.count > 30 && sample.x > pointStart.x + sample.width * 0.4;
+  }).toBe(true);
   const pointSeeked = await brightCentroid(page, 80);
   expect(pointSeeked.count).toBeGreaterThan(30);
-  expect(pointSeeked.x).toBeGreaterThan(pointLater.x + pointLater.width * 0.08);
+  expect(pointSeeked.x).toBeGreaterThan(pointStart.x + pointSeeked.width * 0.4);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-seek-80.png` });
 
   await page.getByRole("button", { name: "Glyph", exact: true }).click();
