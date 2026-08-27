@@ -3,6 +3,7 @@ export type Vec3 = readonly [number, number, number];
 export type Rgba = readonly [number, number, number, number];
 
 export type SourceKind = "raster" | "svg" | "text" | "video" | "procedural" | "audio" | "data";
+export type SourceRole = "visual" | "texture" | "mask" | "analysis";
 export type RepresentationKind = "point-field" | "curve-field" | "surface-field";
 export type RendererKind = "original" | "glyph" | "point" | "particle";
 
@@ -26,6 +27,7 @@ export interface SourceDescriptor {
   readonly id: string;
   readonly kind: SourceKind;
   readonly label: string;
+  readonly role?: SourceRole;
 }
 
 export interface RenderDescriptor {
@@ -42,6 +44,10 @@ export interface ProjectDocument {
 
 export const PROJECT_SCHEMA_VERSION = 1 as const;
 
+export function resolveSourceRole(source: Pick<SourceDescriptor, "role">): SourceRole {
+  return source.role ?? "visual";
+}
+
 export function createEmptyProject(seed = 1): ProjectDocument {
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -53,3 +59,4 @@ export function createEmptyProject(seed = 1): ProjectDocument {
 
 export * from "./sampling";
 export * from "./morph";
+export * from "./mask";
