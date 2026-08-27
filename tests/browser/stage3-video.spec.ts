@@ -1,15 +1,45 @@
-import { mkdirSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { mkdirSync, readFileSync } from "node:fs";
+import { expect, test, type Page } from "@playwright/test";
 
 const evidenceDir = "preview-evidence";
 mkdirSync(evidenceDir, { recursive: true });
 
-// ffmpeg-generated 160x100, 10fps, 2.0s VP9 WebM with a white square moving left -> right.
-// ffprobe verifies an explicit 2.000000s duration so both playback and seeking are testable.
+// Generated with ffmpeg: 160×100, 10 fps, 2.0 s VP9 WebM.
+// A 30×30 white square moves left-to-right over a black background.
 const movingSquareWebm = Buffer.from(
-  "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAR7EU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggRS7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAn0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WI0MaiHWhcoL2cgQAitZyDdW5kiIEAhoVWX1ZQOYOBASPjg4QF9eEA4JCwgaC6gWSagQJVsIRVuYEBElTDZ0B/c3OfY8CAZ8iZRaOHRU5DT0RFUkSHjExhdmY2MS43LjEwM3Nz2mPAi2PFiNDGoh1oXKC9Z8ilRaOHRU5DT0RFUkSHmExhdmM2MS4xOS4xMDEgbGlidnB4LXZwOWfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnVCpOeBAKPkgQAAgIJJg0IACfAGNgY4JBwYQgAAoEfY/WIM2+k8AABrPVE/uClN6SdJujwh/HMSHhZo02O359RW9Zjq8tkR7lLMvpx2AJ8W3CT0Vuj3Uz+ndJf5xCglRKaAlfMwEfSzk9mIUKOXgQBkAIYAQJKcKElAAANwAABZ+AQ3VICjl4EAyACGAECSnCxKwAADcAAAWfgEN1SAo5eBASwAhgBAkpwsScAAA3AAAFn4BDdUgKOXgQGQAIYAQJKcKEigAANwAABZ+AQ3VICjl4EB9ACGAECSnCRHgAADcAAAWfgEN1SAo5eBAlgAhgBAkpwkRuAAA3AAAFn4BDdUgKOXgQK8AIYAQJKcIEZAAANwAABZ+AQ3VICjl4EDIACGAECSnCBFwAADcAAAWfgEN1SAo5eBA4QAhgBAkpwgRUAAA3AAAFn4BDdUgKPkgQPogIJJg0IACfAGNgY4JBwYQgAAoEfY/WIM2+k8AABrPVE/uClN6SdJujwh/HMSHhZo02O359RW9Zjq8tkR7lLMvpx2AJ8W3CT0Vuj3Uz+ndJf5xCglRKaAlfMwEfSzk9mIUKOXgQRMAIYAQJKcIETgAANwAABZ+AQ3VICjl4EEsACGAECSnBxEYAADcAAAWfgEN1SAo5eBBRQAhgBAkpwcRAAAA3AAAFn4BDdUgKOXgQV4AIYAQJKcHEOgAANwAABZ+AQ3VICjl4EF3ACGAECSnBhDQAADcAAAWfgEN1SAo5eBBkAAhgBAkpwYQwAAA3AAAFn4BDdUgKOXgQakAIYAQJKcGELAAANwAABZ+AQ3VICjl4EHCACGAECSnBhCgAADcAAAWfgEN1SAo6qBB2wAhgBAkpwYQkAAA3AAAAqZy3wMEIPvPSswLieDRLHXwAABBVFAtzgcU7trpLuPs4EAt4r3gQHxggGo8IEDu5GzggPot4v3gQHxggGo8IIBSg==",
+  readFileSync("tests/fixtures/stage3-moving-square.webm.base64", "utf8").trim(),
   "base64",
 );
+
+async function brightCentroid(page: Page, threshold = 80) {
+  return page.locator("canvas").evaluate((canvas: HTMLCanvasElement, lumaThreshold: number) => {
+    const copy = document.createElement("canvas");
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const ctx = copy.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("centroid-canvas-unavailable");
+    ctx.drawImage(canvas, 0, 0);
+    const pixels = ctx.getImageData(0, 0, copy.width, copy.height).data;
+    let count = 0;
+    let sumX = 0;
+    for (let y = 0; y < copy.height; y += 1) {
+      for (let x = 0; x < copy.width; x += 1) {
+        const offset = (y * copy.width + x) * 4;
+        const luma = pixels[offset] * 0.2126 + pixels[offset + 1] * 0.7152 + pixels[offset + 2] * 0.0722;
+        if (pixels[offset + 3] > 0 && luma >= lumaThreshold) {
+          count += 1;
+          sumX += x;
+        }
+      }
+    }
+    return {
+      count,
+      x: count ? sumX / count : -1,
+      width: copy.width,
+      height: copy.height,
+    };
+  }, threshold);
+}
 
 test("imports a browser-decodable video and transforms changing frames", async ({ page }) => {
   await page.goto("/");
@@ -21,28 +51,42 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.locator(".asset-meta")).toContainText("Video");
   await expect(page.locator(".source-panel .stage3-note")).toContainText("Video-to-source Morph is not part of this Stage 3 baseline");
 
-  await page.getByRole("button", { name: "Point", exact: true }).click();
   const preview = page.locator(".preview-frame");
+
+  await page.getByRole("button", { name: "Original", exact: true }).click();
+  await expect(page.locator(".canvas-status")).toContainText("Original Mode");
+  const originalStart = await brightCentroid(page, 200);
+  expect(originalStart.count).toBeGreaterThan(100);
+  await preview.screenshot({ path: `${evidenceDir}/stage3-video-original-start.png` });
+
+  await page.getByRole("button", { name: "Point", exact: true }).click();
+  const pointStart = await brightCentroid(page, 80);
+  expect(pointStart.count).toBeGreaterThan(30);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-start.png` });
-  const start = await page.locator("canvas").screenshot();
 
   await page.getByLabel("Play video").click();
   await page.waitForTimeout(850);
   await page.getByLabel("Pause video").click();
   const position = Number(await page.getByLabel("Video position").inputValue());
   expect(position).toBeGreaterThan(15);
+  const pointLater = await brightCentroid(page, 80);
+  expect(pointLater.count).toBeGreaterThan(30);
+  expect(pointLater.x).toBeGreaterThan(pointStart.x + pointStart.width * 0.08);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-playing.png` });
-  const later = await page.locator("canvas").screenshot();
-  expect(later.equals(start)).toBe(false);
 
   await page.getByLabel("Video position").fill("80");
+  await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeGreaterThanOrEqual(79);
   await page.waitForTimeout(200);
+  const pointSeeked = await brightCentroid(page, 80);
+  expect(pointSeeked.count).toBeGreaterThan(30);
+  expect(pointSeeked.x).toBeGreaterThan(pointLater.x + pointLater.width * 0.08);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-point-seek-80.png` });
-  const seeked = await page.locator("canvas").screenshot();
-  expect(seeked.equals(later)).toBe(false);
 
   await page.getByRole("button", { name: "Original", exact: true }).click();
   await expect(page.locator(".canvas-status")).toContainText("Original Mode");
+  const originalSeeked = await brightCentroid(page, 200);
+  expect(originalSeeked.count).toBeGreaterThan(100);
+  expect(originalSeeked.x).toBeGreaterThan(originalStart.x + originalStart.width * 0.4);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-original-seek-80.png` });
 
   const downloadPromise = page.waitForEvent("download");
