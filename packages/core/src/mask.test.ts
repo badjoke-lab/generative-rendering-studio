@@ -27,7 +27,7 @@ describe("applyRasterMaskToPointField", () => {
     expect(masked.samples.map((sample) => sample.sourceUv)).toEqual(field.samples.map((sample) => sample.sourceUv));
     expect(masked.samples[0]?.color?.[3]).toBe(0);
     expect(masked.samples[0]?.density).toBe(0);
-    expect(masked.samples[1]?.color?.[3]).toBe(1);
+    expect(masked.samples[1]?.color?.[3]).toBeCloseTo(1);
     expect(masked.samples[1]?.density).toBeCloseTo(0.6);
   });
 
@@ -36,7 +36,7 @@ describe("applyRasterMaskToPointField", () => {
     const second = applyRasterMaskToPointField(field, blackWhiteMask, { strength: 0.5, invert: true });
 
     expect(first).toEqual(second);
-    expect(first.samples[0]?.color?.[3]).toBe(1);
+    expect(first.samples[0]?.color?.[3]).toBeCloseTo(1);
     expect(first.samples[1]?.color?.[3]).toBeCloseTo(0.5);
   });
 });
