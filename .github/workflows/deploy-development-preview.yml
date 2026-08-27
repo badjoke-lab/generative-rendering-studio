@@ -1,0 +1,46 @@
+name: deploy-development-preview
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact green browser candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: browser-candidate-${{ github.event.workflow_run.head_sha }}
+          path: site
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Verify candidate layout
+        run: |
+          test -f site/index.html
+          test -d site/assets
+          grep -q 'src="./assets/' site/index.html
+          grep -q 'href="./assets/' site/index.html
+      - name: Upload exact candidate for Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
