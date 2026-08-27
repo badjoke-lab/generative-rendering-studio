@@ -21,6 +21,8 @@ async function brightCentroid(page: Page, threshold = 80) {
     const pixels = ctx.getImageData(0, 0, copy.width, copy.height).data;
     let count = 0;
     let sumX = 0;
+    let minX = copy.width;
+    let maxX = -1;
     for (let y = 0; y < copy.height; y += 1) {
       for (let x = 0; x < copy.width; x += 1) {
         const offset = (y * copy.width + x) * 4;
@@ -28,10 +30,17 @@ async function brightCentroid(page: Page, threshold = 80) {
         if (pixels[offset + 3] > 0 && luma >= lumaThreshold) {
           count += 1;
           sumX += x;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
         }
       }
     }
-    return { count, x: count ? sumX / count : -1, width: copy.width };
+    return {
+      count,
+      x: count ? sumX / count : -1,
+      width: copy.width,
+      brightWidth: count ? maxX - minX + 1 : copy.width,
+    };
   }, threshold);
 }
 
@@ -54,7 +63,7 @@ test("Stage 3 release coherence keeps a moving subject stable across normalized 
 
   const timeline = page.getByLabel("Video position");
   const positions = [5, 25, 50, 75, 95];
-  const samples: Array<{ progress: number; count: number; x: number; width: number }> = [];
+  const samples: Array<{ progress: number; count: number; x: number; width: number; brightWidth: number }> = [];
 
   for (const progress of positions) {
     await timeline.fill(String(progress));
@@ -83,13 +92,29 @@ test("webkit second-browser critical Stage 3 video import seek and still-export 
   await loadMovingSquare(page);
 
   const timeline = page.getByLabel("Video position");
+
+  // Prove an actually decoded compact moving-square frame first. The transport value/timecode
+  // updates before the media element's seeked frame is rasterized, which is especially visible
+  // on WebKit runners, so UI state alone is not sufficient evidence that the frame is ready.
+  await timeline.fill("20");
+  await expect.poll(async () => {
+    const sample = await brightCentroid(page, 70);
+    return sample.count > 20 && sample.brightWidth < sample.width * 0.35;
+  }).toBe(true);
+  const start = await brightCentroid(page, 70);
+
   await timeline.fill("80");
-  await expect.poll(async () => Number(await timeline.inputValue())).toBeGreaterThanOrEqual(79);
-  await page.waitForTimeout(180);
+  await expect.poll(async () => {
+    const sample = await brightCentroid(page, 70);
+    return sample.count > 20
+      && sample.brightWidth < sample.width * 0.35
+      && sample.x > start.x + sample.width * 0.2;
+  }).toBe(true);
 
   const transformed = await brightCentroid(page, 70);
   expect(transformed.count).toBeGreaterThan(20);
-  expect(transformed.x).toBeGreaterThan(transformed.width * 0.55);
+  expect(transformed.brightWidth).toBeLessThan(transformed.width * 0.35);
+  expect(transformed.x).toBeGreaterThan(start.x + transformed.width * 0.2);
   await page.locator(".preview-frame").screenshot({ path: `${evidenceDir}/webkit-stage3-video-critical.png` });
 
   const downloadPromise = page.waitForEvent("download");
