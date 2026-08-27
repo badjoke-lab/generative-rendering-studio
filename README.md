@@ -14,9 +14,11 @@ This repository is under active development. The current working codename is **G
 
 ## Current development focus
 
-The first usable release focuses on importing images, SVG and text, rendering them as glyphs, points and particles, and morphing between sources with coherent motion.
+The publicly deployed Development Preview already covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, and browser-safe still/short-animation output where supported.
 
-The project is browser-first and designed around local processing. Public claims will track shipped behavior rather than unreleased internal plans.
+Current development is on **Stage 3 existing-video transformation**. Browser-decodable MP4/WebM can now drive Original/Glyph/Point/Particle previews with video transport, deterministic sampling/identity hardening, and an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export also preserves that video composition when enabled. Remaining Stage 3 work is tracked in the public roadmap rather than being implied as shipped.
+
+The project is browser-first and designed around local processing. Public claims track verified shipped behavior rather than unreleased internal plans.
 
 ## Inspiration / References
 
