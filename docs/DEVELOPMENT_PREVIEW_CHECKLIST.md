@@ -26,10 +26,12 @@ Video import, procedural sources, full Layers/Timeline/Keyframes, audio/data mod
 - [x] Web build passes in repository CI.
 - [x] English and Japanese locale resources remain structurally synchronized.
 - [x] Stage 2 animation export code rejects unsupported recording environments and invalid/empty recordings.
-- [ ] Real Chromium smoke tests pass against the production build in repository CI.
-- [ ] Chromium smoke covers PNG/SVG import, Text creation, English/Japanese locale persistence, Original/Glyph/Point/Particle selection, Source A/B Morph controls, still download, short animation recording when supported, and narrow viewport survival.
+- [x] Real Chromium smoke tests pass against the production build in repository CI.
+- [x] Chromium smoke covers PNG/SVG import, Text creation, English/Japanese locale persistence, Original/Glyph/Point/Particle selection, Source A/B Morph controls, still download, short animation recording when supported, and narrow viewport survival.
 
 The real-browser CI uses Playwright with the production Vite build. Failure traces/screenshots are retained as CI artifacts so a browser regression is inspectable rather than reduced to a manual claim.
+
+The release lane also retains a `preview-evidence-<commit>` artifact containing representative renderer frames, Morph frames at 0/50/100%, Japanese UI, the animation final frame, and the 390x844 viewport. This evidence is intentionally visual: it can expose regressions that DOM assertions cannot. The first retained evidence caught aspect distortion in the transformed WebGL renderers; the current candidate corrects source-space and viewport-space aspect handling and the corrected evidence has been inspected.
 
 ## Studio behavior gates
 
@@ -50,13 +52,13 @@ The real-browser CI uses Playwright with the production Vite build. Failure trac
 
 Repository CI should perform the deterministic and repeatable Chromium path. The following checks still benefit from human observation on the exact candidate intended for public deployment:
 
-- [ ] Visually confirm Original/Glyph/Point/Particle output has no blank, corrupted, or obviously unstable canvas.
+- [x] Visually confirm Original/Glyph/Point/Particle output has no blank, corrupted, or obviously unstable canvas on the retained Chromium evidence.
 - [ ] Visually confirm Source A -> Source B Morph reaches both endpoints without an obvious correspondence reset during playback.
 - [ ] Open downloaded PNG/WebP files and confirm they decode correctly.
 - [ ] Open one downloaded short Morph animation, when recording is supported, and confirm non-zero duration and the complete A-to-B transition.
 - [ ] Confirm recording-time control lock/recovery feels correct in the browser rather than only being DOM-disabled.
 - [ ] Repeat the critical import/Morph/export path in a second browser family where practical.
-- [ ] Visually inspect a narrow viewport for catastrophic overlap or inaccessible controls; full mobile authoring is not yet promised.
+- [x] Visually inspect the retained 390x844 Chromium viewport for catastrophic overlap or inaccessible controls; full mobile authoring is not yet promised.
 
 ## Deployment gate
 
