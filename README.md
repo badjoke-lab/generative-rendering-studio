@@ -16,7 +16,9 @@ This repository is under active development. The current working codename is **G
 
 The publicly deployed Development Preview already covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, and browser-safe still/short-animation output where supported.
 
-Current development is on **Stage 3 existing-video transformation**. Browser-decodable MP4/WebM can now drive Original/Glyph/Point/Particle previews with video transport, deterministic sampling/identity hardening, and an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export also preserves that video composition when enabled. Remaining Stage 3 work is tracked in the public roadmap rather than being implied as shipped.
+Current development is on **Stage 3 existing-video transformation**. Browser-decodable MP4/WebM can drive Original/Glyph/Point/Particle previews with video transport, deterministic sampling/identity hardening, and an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export preserves that composition when enabled. A synchronized auxiliary video can also be used as a **Texture Video** for source-space color, a **Mask Video** for visibility, or an **Analysis Video** whose frame brightness drives transformed element size. These auxiliary roles follow normalized main-video progress and remain local to the browser/device.
+
+The remaining Stage 3 work is release hardening with representative real footage and the Public Alpha completion/release gate. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
 
 The project is browser-first and designed around local processing. Public claims track verified shipped behavior rather than unreleased internal plans.
 
