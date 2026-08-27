@@ -99,8 +99,6 @@ export const en = {
   "guide.renderHint": "Choose Original, Glyph, Point, or Particle, then adjust the controls below.",
   "guide.morphHint": "Optional: add a second source to animate from the main source into it.",
   "guide.exportHint": "Choose PNG or WebP and save the current preview to your device.",
-  "references.title": "Inspiration / References",
-  "references.detail": "Visual references that inspired exploration of this tool. GRS implementation is independent.",
 } as const;
 
 export type TranslationKey = keyof typeof en;
