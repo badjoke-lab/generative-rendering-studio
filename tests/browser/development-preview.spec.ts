@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const png1x1White = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nVQAAAAASUVORK5CYII=",
@@ -13,6 +13,20 @@ const targetSvg = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100"><rect width="160" height="100" fill="black"/><rect x="90" y="20" width="50" height="60" fill="white"/></svg>`,
 );
 
+function assetName(page: Page, name: string) {
+  return page.locator(".asset-meta strong").filter({ hasText: name });
+}
+
+function morphSection(page: Page) {
+  return page.locator("section.inspector-section").filter({
+    has: page.getByRole("heading", { name: "Morph", exact: true }),
+  });
+}
+
+function morphToggle(page: Page) {
+  return morphSection(page).locator("button.toggle");
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Renderer Mode")).toBeVisible();
@@ -21,14 +35,14 @@ test.beforeEach(async ({ page }) => {
 test("imports supported still sources and switches renderers", async ({ page }) => {
   const fileInputs = page.locator('input[type="file"]');
   await fileInputs.nth(0).setInputFiles({ name: "source.png", mimeType: "image/png", buffer: png1x1White });
-  await expect(page.getByText("source.png")).toBeVisible();
+  await expect(assetName(page, "source.png")).toBeVisible();
 
   await fileInputs.nth(0).setInputFiles({ name: "source.svg", mimeType: "image/svg+xml", buffer: sourceSvg });
-  await expect(page.getByText("source.svg")).toBeVisible();
+  await expect(assetName(page, "source.svg")).toBeVisible();
 
   for (const renderer of ["Original", "Glyph", "Point", "Particle"]) {
     await page.getByRole("button", { name: renderer, exact: true }).click();
-    await expect(page.getByText(`${renderer} Mode`, { exact: true })).toBeVisible();
+    await expect(page.locator(".canvas-status")).toContainText(`${renderer} Mode`);
   }
 
   const canvas = page.locator("canvas");
@@ -41,7 +55,7 @@ test("imports supported still sources and switches renderers", async ({ page }) 
 test("creates text and persists Japanese locale selection", async ({ page }) => {
   page.once("dialog", async (dialog) => dialog.accept("テスト"));
   await page.getByRole("button", { name: "Text", exact: true }).click();
-  await expect(page.getByText("テスト", { exact: true })).toBeVisible();
+  await expect(assetName(page, "テスト")).toBeVisible();
 
   await page.getByLabel("Language").selectOption("ja");
   await expect(page.getByText("レンダラー", { exact: false })).toBeVisible();
@@ -54,8 +68,11 @@ test("runs coherent A-to-B Morph controls and exports a still", async ({ page })
   await fileInputs.nth(0).setInputFiles({ name: "source.svg", mimeType: "image/svg+xml", buffer: sourceSvg });
   await fileInputs.nth(1).setInputFiles({ name: "target.svg", mimeType: "image/svg+xml", buffer: targetSvg });
 
-  await expect(page.getByText("target.svg")).toBeVisible();
-  await page.getByRole("button", { name: "Enable Morph" }).click();
+  await expect(assetName(page, "target.svg")).toBeVisible();
+  const toggle = morphToggle(page);
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Stage 2 morph preview")).toBeVisible();
 
   const timeline = page.getByLabel("Timeline position");
@@ -66,7 +83,7 @@ test("runs coherent A-to-B Morph controls and exports a still", async ({ page })
   const stillDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export current frame" }).click();
   const download = await stillDownload;
-  expect(download.suggestedFilename()).toMatch(/source-point\.png$/);
+  expect(download.suggestedFilename()).toMatch(/source-svg-point\.png$/);
   const path = await download.path();
   expect(path).toBeTruthy();
 });
@@ -75,7 +92,11 @@ test("records a short Morph animation when Chromium exposes canvas recording", a
   const fileInputs = page.locator('input[type="file"]');
   await fileInputs.nth(0).setInputFiles({ name: "source.svg", mimeType: "image/svg+xml", buffer: sourceSvg });
   await fileInputs.nth(1).setInputFiles({ name: "target.svg", mimeType: "image/svg+xml", buffer: targetSvg });
-  await page.getByRole("button", { name: "Enable Morph" }).click();
+
+  const toggle = morphToggle(page);
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 
   const animationButton = page.getByRole("button", { name: "Export Morph animation" });
   if (await animationButton.isDisabled()) {
@@ -83,14 +104,17 @@ test("records a short Morph animation when Chromium exposes canvas recording", a
     test.skip(true, "Chromium runner does not expose canvas MediaRecorder");
   }
 
-  const durationLabel = page.getByText("Duration", { exact: true }).locator("..");
-  await durationLabel.locator('input[type="range"]').fill("1");
+  const durationControl = morphSection(page)
+    .locator("label")
+    .filter({ hasText: "Duration" })
+    .locator('input[type="range"]');
+  await durationControl.fill("1");
 
   const downloadPromise = page.waitForEvent("download", { timeout: 15_000 });
   await animationButton.click();
   await expect(page.getByRole("button", { name: "Recording animation…" })).toBeDisabled();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/source-to-target-point\.(webm|mp4)$/);
+  expect(download.suggestedFilename()).toMatch(/source-svg-to-target-svg-point\.(webm|mp4)$/);
   const path = await download.path();
   expect(path).toBeTruthy();
   await expect(page.getByText("Animation file created. The preview is held on the final frame.")).toBeVisible();
