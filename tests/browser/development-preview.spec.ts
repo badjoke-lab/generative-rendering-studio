@@ -1,4 +1,8 @@
+import { mkdirSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+
+const evidenceDir = "preview-evidence";
+mkdirSync(evidenceDir, { recursive: true });
 
 const png1x1White = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nVQAAAAASUVORK5CYII=",
@@ -43,6 +47,9 @@ test("imports supported still sources and switches renderers", async ({ page }) 
   for (const renderer of ["Original", "Glyph", "Point", "Particle"]) {
     await page.getByRole("button", { name: renderer, exact: true }).click();
     await expect(page.locator(".canvas-status")).toContainText(`${renderer} Mode`);
+    await page.locator(".preview-frame").screenshot({
+      path: `${evidenceDir}/renderer-${renderer.toLowerCase()}.png`,
+    });
   }
 
   const canvas = page.locator("canvas");
@@ -59,6 +66,7 @@ test("creates text and persists Japanese locale selection", async ({ page }) => 
 
   await page.getByLabel("Language").selectOption("ja");
   await expect(page.getByText("レンダラー", { exact: false })).toBeVisible();
+  await page.screenshot({ path: `${evidenceDir}/locale-ja.png`, fullPage: true });
   await page.reload();
   await expect(page.getByLabel("言語")).toHaveValue("ja");
 });
@@ -76,8 +84,13 @@ test("runs coherent A-to-B Morph controls and exports a still", async ({ page })
   await expect(page.getByText("Stage 2 morph preview")).toBeVisible();
 
   const timeline = page.getByLabel("Timeline position");
-  await timeline.fill("100");
-  await expect(page.getByText("100%", { exact: true }).first()).toBeVisible();
+  for (const progress of [0, 50, 100]) {
+    await timeline.fill(String(progress));
+    await expect(page.getByText(`${progress}%`, { exact: true }).first()).toBeVisible();
+    await page.locator(".preview-frame").screenshot({
+      path: `${evidenceDir}/morph-${progress}.png`,
+    });
+  }
   await timeline.fill("0");
 
   const stillDownload = page.waitForEvent("download");
@@ -118,6 +131,7 @@ test("records a short Morph animation when Chromium exposes canvas recording", a
   const path = await download.path();
   expect(path).toBeTruthy();
   await expect(page.getByText("Animation file created. The preview is held on the final frame.")).toBeVisible();
+  await page.locator(".preview-frame").screenshot({ path: `${evidenceDir}/animation-final.png` });
 });
 
 test("narrow viewport keeps the Studio document alive", async ({ page }) => {
@@ -132,4 +146,5 @@ test("narrow viewport keeps the Studio document alive", async ({ page }) => {
   expect(metrics.bodyWidth).toBeGreaterThan(0);
   expect(metrics.bodyHeight).toBeGreaterThan(0);
   expect(metrics.canvasCount).toBeGreaterThan(0);
+  await page.screenshot({ path: `${evidenceDir}/narrow-390x844.png`, fullPage: true });
 });
