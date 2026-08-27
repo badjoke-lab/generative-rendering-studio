@@ -47,3 +47,45 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+      - name: Verify public Development Preview bytes
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          index_tmp="$(mktemp)"
+          app_tmp="$(mktemp)"
+          css_tmp="$(mktemp)"
+
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --location \
+              --connect-timeout 10 --max-time 30 \
+              "$PAGE_URL" -o "$index_tmp"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "Public Development Preview did not become readable in time." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          test -s "$index_tmp"
+          cmp --silent site/index.html "$index_tmp"
+
+          js_path="$(grep -o 'src="./assets/[^\"]*"' "$index_tmp" | head -n 1 | cut -d'"' -f2)"
+          css_path="$(grep -o 'href="./assets/[^\"]*"' "$index_tmp" | head -n 1 | cut -d'"' -f2)"
+          test -n "$js_path"
+          test -n "$css_path"
+
+          base_url="${PAGE_URL%/}/"
+          curl --fail --silent --show-error --location \
+            --connect-timeout 10 --max-time 30 \
+            "${base_url}${js_path#./}" -o "$app_tmp"
+          curl --fail --silent --show-error --location \
+            --connect-timeout 10 --max-time 30 \
+            "${base_url}${css_path#./}" -o "$css_tmp"
+
+          cmp --silent "site/${js_path#./}" "$app_tmp"
+          cmp --silent "site/${css_path#./}" "$css_tmp"
