@@ -224,11 +224,11 @@ test("imports supported still sources and switches renderers", async ({ page }) 
 
 test("creates text and persists Japanese locale selection", async ({ page }) => {
   page.once("dialog", async (dialog) => dialog.accept("テスト"));
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: /Text/ }).click();
   await expect(assetName(page, "テスト")).toBeVisible();
 
   await page.getByLabel("Language").selectOption("ja");
-  await expect(page.getByText("レンダラー", { exact: false })).toBeVisible();
+  await expect(page.getByText("見た目を選ぶ", { exact: true })).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/locale-ja.png`, fullPage: true });
   await page.reload();
   await expect(page.getByLabel("言語")).toHaveValue("ja");
