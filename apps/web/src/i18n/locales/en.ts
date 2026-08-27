@@ -102,7 +102,7 @@ export const en = {
   "error.webglInitFailed": "WebGL initialization failed",
   "preview.addSourceHint": "Add an image, SVG, video, or text source",
   "guide.title": "Start here",
-  "guide.summary": "Add material, choose a look, optionally morph a still source, then save the result.",
+  "guide.summary": "Add material, choose a look, optionally morph to a second source, then save the result.",
   "guide.stepSource": "Add material",
   "guide.stepRender": "Choose a look",
   "guide.stepMorph": "Morph (optional)",
@@ -110,7 +110,7 @@ export const en = {
   "guide.previewHint": "The result updates here as you change settings.",
   "guide.videoPreviewHint": "Play or scrub the imported video below; each decoded frame is transformed through the selected renderer.",
   "guide.renderHint": "Choose Original, Glyph, Point, or Particle, then adjust the controls below.",
-  "guide.morphHint": "Optional for still sources: add a second source to animate from the main source into it.",
+  "guide.morphHint": "Optional: add a second source to animate from the main source into it.",
   "guide.exportHint": "Choose PNG or WebP and save the current preview to your device.",
   "guide.videoStillExportHint": "Choose PNG or WebP to save the currently displayed transformed video frame.",
 } as const;
