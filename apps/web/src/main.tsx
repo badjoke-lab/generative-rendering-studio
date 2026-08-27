@@ -4,6 +4,7 @@ import { brand } from "@grs/brand";
 import {
   applyMorphEasing,
   applyRasterMaskToPointField,
+  applyRasterTextureToPointField,
   createMorphMapping,
   morphMappingToFloat32,
   pointFieldToFloat32,
@@ -110,17 +111,22 @@ function App() {
   const morphInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const maskVideoInput = useRef<HTMLInputElement>(null);
+  const textureVideoInput = useRef<HTMLInputElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const originalUnderlayCanvas = useRef<HTMLCanvasElement>(null);
   const videoElement = useRef<HTMLVideoElement>(null);
   const maskVideoElement = useRef<HTMLVideoElement>(null);
+  const textureVideoElement = useRef<HTMLVideoElement>(null);
   const videoUrl = useRef<string | null>(null);
   const maskVideoUrl = useRef<string | null>(null);
+  const textureVideoUrl = useRef<string | null>(null);
   const maskDesiredProgress = useRef(0);
+  const textureDesiredProgress = useRef(0);
 
   const [raster, setRaster] = useState<RasterPixels>();
   const [morphRaster, setMorphRaster] = useState<RasterPixels>();
   const [maskRaster, setMaskRaster] = useState<RasterPixels>();
+  const [textureRaster, setTextureRaster] = useState<RasterPixels>();
   const [field, setField] = useState<PointField>();
   const [morphField, setMorphField] = useState<PointField>();
   const [sourceKind, setSourceKind] = useState<SourceKind>("still");
@@ -134,6 +140,9 @@ function App() {
   const [maskStrength, setMaskStrength] = useState(1);
   const [maskInvert, setMaskInvert] = useState(false);
   const [maskError, setMaskError] = useState<string | null>(null);
+  const [textureVideoLabel, setTextureVideoLabel] = useState("");
+  const [textureVideoDuration, setTextureVideoDuration] = useState(0);
+  const [textureError, setTextureError] = useState<string | null>(null);
   const [rendererMode, setRendererMode] = useState<StudioRendererMode>("point");
   const [glyphPreset, setGlyphPreset] = useState<GlyphPreset>("binary");
   const [elementSize, setElementSize] = useState(1);
@@ -176,8 +185,25 @@ function App() {
     setMaskError(null);
   };
 
+  const clearTextureVideo = () => {
+    const textureVideo = textureVideoElement.current;
+    if (textureVideo) {
+      textureVideo.pause();
+      textureVideo.removeAttribute("src");
+      textureVideo.load();
+    }
+    if (textureVideoUrl.current) URL.revokeObjectURL(textureVideoUrl.current);
+    textureVideoUrl.current = null;
+    textureDesiredProgress.current = 0;
+    setTextureRaster(undefined);
+    setTextureVideoLabel("");
+    setTextureVideoDuration(0);
+    setTextureError(null);
+  };
+
   const clearVideoSource = () => {
     clearMaskVideo();
+    clearTextureVideo();
     const video = videoElement.current;
     if (video) {
       video.pause();
@@ -196,6 +222,12 @@ function App() {
     const maskVideo = maskVideoElement.current;
     if (!maskVideo || !maskVideoUrl.current) return;
     try { setMaskRaster(rasterizeVideoElement(maskVideo)); } catch { /* keep last good mask frame */ }
+  };
+
+  const captureTextureFrame = () => {
+    const textureVideo = textureVideoElement.current;
+    if (!textureVideo || !textureVideoUrl.current) return;
+    try { setTextureRaster(rasterizeVideoElement(textureVideo)); } catch { /* keep last good texture frame */ }
   };
 
   const syncMaskToProgress = (progress: number) => {
@@ -218,9 +250,35 @@ function App() {
     maskVideo.currentTime = targetTime;
   };
 
+  const syncTextureToProgress = (progress: number) => {
+    const textureVideo = textureVideoElement.current;
+    if (!textureVideo || !textureVideoUrl.current || !Number.isFinite(textureVideo.duration) || textureVideo.duration <= 0) return;
+    const clampedProgress = Math.min(1, Math.max(0, progress));
+    textureDesiredProgress.current = clampedProgress;
+    if (textureVideo.seeking) return;
+    const targetTime = Math.min(textureVideo.duration, clampedProgress * textureVideo.duration);
+    if (Math.abs(textureVideo.currentTime - targetTime) < 0.025) {
+      captureTextureFrame();
+      return;
+    }
+    const onSeeked = () => {
+      captureTextureFrame();
+      const latestTarget = Math.min(textureVideo.duration, textureDesiredProgress.current * textureVideo.duration);
+      if (Math.abs(textureVideo.currentTime - latestTarget) >= 0.05) syncTextureToProgress(textureDesiredProgress.current);
+    };
+    textureVideo.addEventListener("seeked", onSeeked, { once: true });
+    textureVideo.currentTime = targetTime;
+  };
+
+  const syncAuxiliaryVideos = (progress: number) => {
+    syncMaskToProgress(progress);
+    syncTextureToProgress(progress);
+  };
+
   useEffect(() => () => {
     if (videoUrl.current) URL.revokeObjectURL(videoUrl.current);
     if (maskVideoUrl.current) URL.revokeObjectURL(maskVideoUrl.current);
+    if (textureVideoUrl.current) URL.revokeObjectURL(textureVideoUrl.current);
   }, []);
 
   useEffect(() => {
@@ -266,7 +324,7 @@ function App() {
     const captureCurrentVideoFrame = () => {
       setVideoTime(video.currentTime);
       try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
-      if (Number.isFinite(video.duration) && video.duration > 0) syncMaskToProgress(video.currentTime / video.duration);
+      if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
     };
     const tick = (now: number) => {
       if (video.paused || video.ended) {
@@ -286,10 +344,14 @@ function App() {
 
   const hasSource = Boolean(raster);
   const isVideoSource = sourceKind === "video";
+  const texturedField = useMemo(() => {
+    if (!field || !isVideoSource || !textureRaster) return field;
+    return applyRasterTextureToPointField(field, textureRaster);
+  }, [field, isVideoSource, textureRaster]);
   const maskedField = useMemo(() => {
-    if (!field || !isVideoSource || !maskRaster) return field;
-    return applyRasterMaskToPointField(field, maskRaster, { strength: maskStrength, invert: maskInvert });
-  }, [field, isVideoSource, maskInvert, maskRaster, maskStrength]);
+    if (!texturedField || !isVideoSource || !maskRaster) return texturedField;
+    return applyRasterMaskToPointField(texturedField, maskRaster, { strength: maskStrength, invert: maskInvert });
+  }, [isVideoSource, maskInvert, maskRaster, maskStrength, texturedField]);
   const basePacked = useMemo(() => maskedField ? pointFieldToFloat32(maskedField) : undefined, [maskedField]);
   const morphPacked = useMemo(() => {
     if (!field || !morphField) return undefined;
@@ -303,6 +365,8 @@ function App() {
   const pointCount = previewPositions ? previewPositions.length / 2 : 0;
   const isVideoComposite = isVideoSource && rendererMode !== "original" && videoCompositeOriginal;
   const hasVideoMask = isVideoSource && Boolean(maskRaster && maskVideoLabel);
+  const hasVideoTexture = isVideoSource && Boolean(textureRaster && textureVideoLabel);
+  const videoRoleSuffix = `${hasVideoTexture ? ` · ${t("preview.videoTextured")}` : ""}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}`;
 
   useEffect(() => {
     if (!morphPlaying || !morphEnabled || !morphPacked || isVideoSource) return;
@@ -421,6 +485,45 @@ function App() {
     }
   };
 
+  const loadTextureVideo = async (file: File) => {
+    if (animationExporting || !isVideoSource) return;
+    const textureVideo = textureVideoElement.current;
+    if (!textureVideo) return;
+    clearTextureVideo();
+    setTextureError(null);
+    const url = URL.createObjectURL(file);
+    textureVideoUrl.current = url;
+    try {
+      textureVideo.muted = true;
+      textureVideo.playsInline = true;
+      textureVideo.preload = "auto";
+      await new Promise<void>((resolve, reject) => {
+        const onLoaded = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error("texture-video-decode-failed")); };
+        const cleanup = () => {
+          textureVideo.removeEventListener("loadeddata", onLoaded);
+          textureVideo.removeEventListener("error", onError);
+        };
+        textureVideo.addEventListener("loadeddata", onLoaded, { once: true });
+        textureVideo.addEventListener("error", onError, { once: true });
+        textureVideo.src = url;
+        textureVideo.load();
+      });
+      setTextureVideoLabel(file.name);
+      setTextureVideoDuration(Number.isFinite(textureVideo.duration) ? textureVideo.duration : 0);
+      setUseSourceColor(true);
+      captureTextureFrame();
+      const mainVideo = videoElement.current;
+      const progress = mainVideo && Number.isFinite(mainVideo.duration) && mainVideo.duration > 0
+        ? mainVideo.currentTime / mainVideo.duration
+        : 0;
+      syncTextureToProgress(progress);
+    } catch {
+      clearTextureVideo();
+      setTextureError(t("source.textureVideoImportFailed"));
+    }
+  };
+
   const addText = () => {
     if (animationExporting) return;
     const text = window.prompt(t("source.textPrompt"), "GRS");
@@ -446,14 +549,14 @@ function App() {
     const clampedProgress = Math.min(1, Math.max(0, progress));
     const nextTime = clampedProgress * video.duration;
     setVideoTime(nextTime);
-    syncMaskToProgress(clampedProgress);
+    syncAuxiliaryVideos(clampedProgress);
     if (Math.abs(video.currentTime - nextTime) < 0.001) {
       try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
       return;
     }
     const onSeeked = () => {
       try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
-      if (Number.isFinite(video.duration) && video.duration > 0) syncMaskToProgress(video.currentTime / video.duration);
+      if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
     };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.currentTime = nextTime;
@@ -463,7 +566,7 @@ function App() {
     const video = videoElement.current;
     if (!video) return;
     if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.02)) video.currentTime = 0;
-    if (Number.isFinite(video.duration) && video.duration > 0) syncMaskToProgress(video.currentTime / video.duration);
+    if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
     try {
       await video.play();
       setVideoPlaying(true);
@@ -478,7 +581,7 @@ function App() {
     video.pause();
     setVideoPlaying(false);
     setVideoTime(video.currentTime);
-    if (Number.isFinite(video.duration) && video.duration > 0) syncMaskToProgress(video.currentTime / video.duration);
+    if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
   };
 
   const exportStill = () => {
@@ -539,17 +642,18 @@ function App() {
   const transportProgress = isVideoSource && videoDuration > 0 ? (videoTime / videoDuration) * 100 : morphProgress * 100;
   const transportPlaying = isVideoSource ? videoPlaying : morphPlaying;
   const previewDetail = isVideoComposite
-    ? `${t("preview.videoComposite")}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}`
+    ? `${t("preview.videoComposite")}${videoRoleSuffix}`
     : rendererMode === "original"
       ? t("preview.originalSource")
       : pointCount
-        ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}`
+        ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}${videoRoleSuffix}`
         : t("preview.fallback");
 
   return (
     <main className="studio-shell">
       <video ref={videoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <video ref={maskVideoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
+      <video ref={textureVideoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <header className="studio-topbar">
         <div className="brand-lockup"><strong>{brand.shortName}</strong><span>{brand.displayName}</span></div>
         <div className="release-badge">{t("status.developmentPreview")}</div>
@@ -564,6 +668,7 @@ function App() {
         <input ref={morphInput} data-source-kind="morph" hidden disabled={animationExporting || isVideoSource} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
         <input ref={videoInput} data-source-kind="video" hidden disabled={animationExporting} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadVideo(file); event.currentTarget.value = ""; }} />
         <input ref={maskVideoInput} data-source-kind="video-mask" hidden disabled={animationExporting || !isVideoSource} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadMaskVideo(file); event.currentTarget.value = ""; }} />
+        <input ref={textureVideoInput} data-source-kind="video-texture" hidden disabled={animationExporting || !isVideoSource} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadTextureVideo(file); event.currentTarget.value = ""; }} />
 
         <section className="quickstart-card" aria-label={t("guide.title")}>
           <strong>{t("guide.title")}</strong>
@@ -591,6 +696,10 @@ function App() {
         {isVideoSource ? <p className="supported-note stage3-note">{t("source.videoMorphLater")}</p> : morphLabel ? <section className="asset-card"><div className="asset-thumb" /><div className="asset-meta"><strong>{morphLabel}</strong><span>{morphField ? `${morphField.samples.length.toLocaleString(locale)} ${t("preview.elements")}` : "…"}</span></div></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => morphInput.current?.click()}>＋ {t("action.addMorphTarget")}</button>}
 
         {isVideoSource && <>
+          <div className="section-title-row source-heading morph-source-heading"><strong>{t("source.textureVideo")}</strong><span className="optional-label">{t("source.optional")}</span></div>
+          {textureVideoLabel ? <section className="asset-card" data-source-role="texture"><div className="asset-thumb" /><div className="asset-meta"><strong>{textureVideoLabel}</strong><span>{t("source.textureVideoDetail")}{textureVideoDuration > 0 ? ` · ${textureVideoDuration.toFixed(2)} ${t("morph.seconds")}` : ""}</span></div><button className="asset-menu" aria-label={t("action.removeTextureVideo")} disabled={animationExporting} onClick={clearTextureVideo}>×</button></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => textureVideoInput.current?.click()}>＋ {t("action.addTextureVideo")}</button>}
+          {textureError && <p className="supported-note stage3-note" role="alert">{textureError}</p>}
+
           <div className="section-title-row source-heading morph-source-heading"><strong>{t("source.maskVideo")}</strong><span className="optional-label">{t("source.optional")}</span></div>
           {maskVideoLabel ? <section className="asset-card" data-source-role="mask"><div className="asset-thumb" /><div className="asset-meta"><strong>{maskVideoLabel}</strong><span>{t("source.maskVideoDetail")}{maskVideoDuration > 0 ? ` · ${maskVideoDuration.toFixed(2)} ${t("morph.seconds")}` : ""}</span></div><button className="asset-menu" aria-label={t("action.removeMaskVideo")} disabled={animationExporting} onClick={clearMaskVideo}>×</button></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => maskVideoInput.current?.click()}>＋ {t("action.addMaskVideo")}</button>}
           {maskError && <p className="supported-note stage3-note" role="alert">{maskError}</p>}
