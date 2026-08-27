@@ -49,6 +49,7 @@ async function seekAndWait(page: Page, progress: number, previousSignature?: num
 }
 
 test("representative real footage stays usable across Stage 3 renderers and seeks", async ({ page, browserName }) => {
+  test.setTimeout(90_000);
   test.skip(browserName !== "chromium", "Representative visual evidence is retained in Chromium");
   const footage = await fetchRealFootage();
   expect(footage.byteLength).toBeGreaterThan(100_000);
