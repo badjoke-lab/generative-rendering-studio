@@ -33,9 +33,10 @@ async function captureMorph(
   target: Buffer,
 ) {
   await page.goto("/");
-  const fileInputs = page.locator('input[type="file"]');
-  await fileInputs.nth(0).setInputFiles({ name: `${label}-a.svg`, mimeType: "image/svg+xml", buffer: source });
-  await fileInputs.nth(1).setInputFiles({ name: `${label}-b.svg`, mimeType: "image/svg+xml", buffer: target });
+  const stillInput = page.locator('input[data-source-kind="still"]');
+  const morphInput = page.locator('input[data-source-kind="morph"]');
+  await stillInput.setInputFiles({ name: `${label}-a.svg`, mimeType: "image/svg+xml", buffer: source });
+  await morphInput.setInputFiles({ name: `${label}-b.svg`, mimeType: "image/svg+xml", buffer: target });
   await expect(page.getByText("WebGL2 is not available in this browser/device.")).toHaveCount(0);
 
   const toggle = morphSection(page).locator("button.toggle");
