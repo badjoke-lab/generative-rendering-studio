@@ -104,7 +104,7 @@ export const ja: Record<TranslationKey, string> = {
   "error.webglInitFailed": "WebGLの初期化に失敗しました",
   "preview.addSourceHint": "画像、SVG、動画、またはテキスト素材を追加してください",
   "guide.title": "まずここから",
-  "guide.summary": "素材を追加 → 見た目を選ぶ → 静止画なら必要に応じて変形 → 保存、の順で使います。",
+  "guide.summary": "素材を追加 → 見た目を選ぶ → 必要なら2つ目の素材へ変形 → 保存、の順で使います。",
   "guide.stepSource": "素材を追加",
   "guide.stepRender": "見た目を選ぶ",
   "guide.stepMorph": "変形（任意）",
@@ -112,7 +112,7 @@ export const ja: Record<TranslationKey, string> = {
   "guide.previewHint": "設定を変えると、ここに結果が反映されます。",
   "guide.videoPreviewHint": "下の再生・シークを使うと、読み込んだ動画の各フレームが選択中の見た目で変換されます。",
   "guide.renderHint": "元画像 / 文字 / 点 / 粒子から見た目を選び、下の項目で調整します。",
-  "guide.morphHint": "静止画では任意。2つ目の素材を追加すると、メイン素材からその素材へ変形できます。",
+  "guide.morphHint": "任意。2つ目の素材を追加すると、メイン素材からその素材へ変形できます。",
   "guide.exportHint": "PNGまたはWebPを選び、現在のプレビューを端末へ保存します。",
   "guide.videoStillExportHint": "PNGまたはWebPを選び、現在表示中の変換済み動画フレームを端末へ保存します。",
 };
