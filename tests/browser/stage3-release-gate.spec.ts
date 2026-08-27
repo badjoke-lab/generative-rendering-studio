@@ -68,9 +68,15 @@ test("Stage 3 release coherence keeps a moving subject stable across normalized 
   for (const progress of positions) {
     await timeline.fill(String(progress));
     await expect.poll(async () => Math.abs(Number(await timeline.inputValue()) - progress)).toBeLessThanOrEqual(1);
-    await page.waitForTimeout(140);
+    const previous = samples.at(-1);
+    await expect.poll(async () => {
+      const sample = await brightCentroid(page, 80);
+      if (sample.count <= 25 || sample.brightWidth >= sample.width * 0.35) return false;
+      return previous ? sample.x > previous.x + sample.width * 0.04 : true;
+    }).toBe(true);
     const sample = await brightCentroid(page, 80);
     expect(sample.count).toBeGreaterThan(25);
+    expect(sample.brightWidth).toBeLessThan(sample.width * 0.35);
     samples.push({ progress, ...sample });
     await page.locator(".preview-frame").screenshot({ path: `${evidenceDir}/stage3-release-coherence-${progress}.png` });
   }
@@ -94,8 +100,8 @@ test("webkit second-browser critical Stage 3 video import seek and still-export 
   const timeline = page.getByLabel("Video position");
 
   // Prove an actually decoded compact moving-square frame first. The transport value/timecode
-  // updates before the media element's seeked frame is rasterized, which is especially visible
-  // on WebKit runners, so UI state alone is not sufficient evidence that the frame is ready.
+  // updates before the media element's sought frame is presented, so UI state alone is not
+  // sufficient evidence that the transformed canvas has reached the requested frame.
   await timeline.fill("20");
   await expect.poll(async () => {
     const sample = await brightCentroid(page, 70);
