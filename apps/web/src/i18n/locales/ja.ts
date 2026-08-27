@@ -101,4 +101,6 @@ export const ja: Record<TranslationKey, string> = {
   "guide.renderHint": "元画像 / 文字 / 点 / 粒子から見た目を選び、下の項目で調整します。",
   "guide.morphHint": "任意。2つ目の素材を追加すると、メイン素材からその素材へ変形できます。",
   "guide.exportHint": "PNGまたはWebPを選び、現在のプレビューを端末へ保存します。",
+  "references.title": "インスピレーション / 参考",
+  "references.detail": "このツールの視覚表現を考える際に参照した作品です。GRSの実装コードは独立しています。",
 };
