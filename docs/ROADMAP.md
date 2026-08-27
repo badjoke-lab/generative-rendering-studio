@@ -96,7 +96,7 @@ Outcome: users can load two visual sources and produce a coherent editable trans
 
 User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation when the current browser/device supports canvas recording.
 
-Status: completed and merged to main. The Stage 1 + Stage 2 browser build is now the Development Preview candidate. Public deployment remains gated by the real-browser checks in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`.
+Status: completed and merged to main. The Stage 1 + Stage 2 browser build is the Development Preview candidate, and its release-candidate checks are complete in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`. Public deployment must still use an exact green main candidate.
 
 ## Development Preview preparation — current release lane
 
@@ -112,7 +112,7 @@ Outcome: the first public browser build is a tested Stage 1 + Stage 2 Developmen
 
 User behavior: open the public browser application without installing desktop software; import supported still sources or create text; render as Original/Glyph/Point/Particle; configure and preview A-to-B Morph; switch English/Japanese; export still frames and, where supported, a short Morph animation locally.
 
-Status: current release lane.
+Status: release-candidate verification complete. Public deployment remains pending and must use an exact green main candidate.
 
 ## Stage 3 — Existing-video transformation
 
