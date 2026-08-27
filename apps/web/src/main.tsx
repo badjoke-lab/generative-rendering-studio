@@ -20,6 +20,22 @@ import "./mobile-ux.css";
 
 const rendererModes = ["original", "glyph", "point", "particle"] as const;
 type StudioRendererMode = "original" | PreviewRendererMode;
+type SourceKind = "still" | "text" | "video";
+
+function rasterizeDrawable(drawable: CanvasImageSource, sourceWidth: number, sourceHeight: number) {
+  const maxSide = 720;
+  const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("canvas-2d-unavailable");
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(drawable, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height);
+}
 
 async function rasterizeImageFile(file: File) {
   const url = URL.createObjectURL(file);
@@ -28,21 +44,17 @@ async function rasterizeImageFile(file: File) {
     image.decoding = "async";
     image.src = url;
     await image.decode();
-    const maxSide = 720;
-    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("canvas-2d-unavailable");
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(image, 0, 0, width, height);
-    return ctx.getImageData(0, 0, width, height);
+    return rasterizeDrawable(image, image.naturalWidth, image.naturalHeight);
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+function rasterizeVideoElement(video: HTMLVideoElement) {
+  if (!video.videoWidth || !video.videoHeight || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    throw new Error("video-frame-unavailable");
+  }
+  return rasterizeDrawable(video, video.videoWidth, video.videoHeight);
 }
 
 function rasterizeText(text: string) {
@@ -81,16 +93,31 @@ function safeFileStem(value: string) {
   return value.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "render";
 }
 
+function formatTime(seconds: number) {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const minutes = Math.floor(safe / 60);
+  const wholeSeconds = Math.floor(safe % 60);
+  const hundredths = Math.floor((safe - Math.floor(safe)) * 100);
+  return `${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+}
+
 function App() {
   const { locale, setLocale, t } = useLocale();
   const fileInput = useRef<HTMLInputElement>(null);
   const morphInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
+  const videoElement = useRef<HTMLVideoElement>(null);
+  const videoUrl = useRef<string | null>(null);
 
   const [raster, setRaster] = useState<RasterPixels>();
   const [morphRaster, setMorphRaster] = useState<RasterPixels>();
   const [field, setField] = useState<PointField>();
   const [morphField, setMorphField] = useState<PointField>();
+  const [sourceKind, setSourceKind] = useState<SourceKind>("still");
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const [rendererMode, setRendererMode] = useState<StudioRendererMode>("point");
   const [glyphPreset, setGlyphPreset] = useState<GlyphPreset>("binary");
   const [elementSize, setElementSize] = useState(1);
@@ -114,6 +141,24 @@ function App() {
   const [animationExportError, setAnimationExportError] = useState<string | null>(null);
   const [animationExportSucceeded, setAnimationExportSucceeded] = useState(false);
   const [animationCapability, setAnimationCapability] = useState(() => getCanvasRecordingCapability(null));
+
+  const clearVideoSource = () => {
+    const video = videoElement.current;
+    if (video) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+    if (videoUrl.current) URL.revokeObjectURL(videoUrl.current);
+    videoUrl.current = null;
+    setVideoPlaying(false);
+    setVideoDuration(0);
+    setVideoTime(0);
+  };
+
+  useEffect(() => () => {
+    if (videoUrl.current) URL.revokeObjectURL(videoUrl.current);
+  }, []);
 
   useEffect(() => {
     if (!raster) setSourceDetail(t("source.fallbackDetail"));
@@ -149,6 +194,30 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, [rendererMode, raster]);
 
+  useEffect(() => {
+    if (sourceKind !== "video" || !videoPlaying) return;
+    const video = videoElement.current;
+    if (!video) return;
+    let frame = 0;
+    let lastCapture = 0;
+    const tick = (now: number) => {
+      if (video.paused || video.ended) {
+        setVideoPlaying(false);
+        setVideoTime(video.currentTime);
+        try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
+        return;
+      }
+      if (now - lastCapture >= 70) {
+        lastCapture = now;
+        setVideoTime(video.currentTime);
+        try { setRaster(rasterizeVideoElement(video)); } catch { /* wait for the next decoded frame */ }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [sourceKind, videoPlaying]);
+
   const basePacked = useMemo(() => field ? pointFieldToFloat32(field) : undefined, [field]);
   const morphPacked = useMemo(() => {
     if (!field || !morphField) return undefined;
@@ -161,9 +230,10 @@ function App() {
   const previewColors = activeMorph?.fromColors ?? basePacked?.colors;
   const pointCount = previewPositions ? previewPositions.length / 2 : 0;
   const hasSource = Boolean(raster);
+  const isVideoSource = sourceKind === "video";
 
   useEffect(() => {
-    if (!morphPlaying || !morphEnabled || !morphPacked) return;
+    if (!morphPlaying || !morphEnabled || !morphPacked || isVideoSource) return;
     const start = performance.now() - morphProgress * morphDuration * 1000;
     let frame = 0;
     const tick = (now: number) => {
@@ -174,7 +244,7 @@ function App() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [morphDuration, morphEnabled, morphPacked, morphPlaying]);
+  }, [isVideoSource, morphDuration, morphEnabled, morphPacked, morphPlaying]);
 
   const loadRaster = async (file: File, target: "source" | "morph") => {
     if (animationExporting) return;
@@ -187,6 +257,8 @@ function App() {
         setMorphLabel(file.name);
         setMorphProgress(0);
       } else {
+        clearVideoSource();
+        setSourceKind("still");
         setRaster(pixels);
         setSourceLabel(file.name);
         setSourceDetail(`${pixels.width} × ${pixels.height}`);
@@ -196,11 +268,56 @@ function App() {
     }
   };
 
+  const loadVideo = async (file: File) => {
+    if (animationExporting) return;
+    const video = videoElement.current;
+    if (!video) return;
+    setSourceError(null);
+    setAnimationExportSucceeded(false);
+    clearVideoSource();
+    setMorphRaster(undefined);
+    setMorphField(undefined);
+    setMorphLabel("");
+    setMorphEnabled(false);
+    setMorphPlaying(false);
+    const url = URL.createObjectURL(file);
+    videoUrl.current = url;
+    try {
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      await new Promise<void>((resolve, reject) => {
+        const onLoaded = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error("video-decode-failed")); };
+        const cleanup = () => {
+          video.removeEventListener("loadeddata", onLoaded);
+          video.removeEventListener("error", onError);
+        };
+        video.addEventListener("loadeddata", onLoaded, { once: true });
+        video.addEventListener("error", onError, { once: true });
+        video.src = url;
+        video.load();
+      });
+      const pixels = rasterizeVideoElement(video);
+      setSourceKind("video");
+      setRaster(pixels);
+      setSourceLabel(file.name);
+      setVideoDuration(Number.isFinite(video.duration) ? video.duration : 0);
+      setVideoTime(video.currentTime);
+      setSourceDetail(`${t("source.video")} · ${video.videoWidth} × ${video.videoHeight}${Number.isFinite(video.duration) ? ` · ${video.duration.toFixed(2)} ${t("morph.seconds")}` : ""}`);
+    } catch {
+      clearVideoSource();
+      setSourceError(t("source.videoImportFailed"));
+    }
+  };
+
   const addText = () => {
     if (animationExporting) return;
     const text = window.prompt(t("source.textPrompt"), "GRS");
     if (!text) return;
     try {
+      clearVideoSource();
+      setSourceKind("text");
       setRaster(rasterizeText(text));
       setSourceLabel(text);
       setSourceDetail(t("source.textDetail"));
@@ -209,6 +326,44 @@ function App() {
     } catch {
       setSourceError(t("source.importFailed"));
     }
+  };
+
+  const seekVideo = (progress: number) => {
+    const video = videoElement.current;
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    video.pause();
+    setVideoPlaying(false);
+    const nextTime = Math.min(video.duration, Math.max(0, progress * video.duration));
+    setVideoTime(nextTime);
+    if (Math.abs(video.currentTime - nextTime) < 0.001) {
+      try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
+      return;
+    }
+    const onSeeked = () => {
+      try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
+    };
+    video.addEventListener("seeked", onSeeked, { once: true });
+    video.currentTime = nextTime;
+  };
+
+  const playVideo = async () => {
+    const video = videoElement.current;
+    if (!video) return;
+    if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.02)) video.currentTime = 0;
+    try {
+      await video.play();
+      setVideoPlaying(true);
+    } catch {
+      setSourceError(t("source.videoPlaybackFailed"));
+    }
+  };
+
+  const stopVideo = () => {
+    const video = videoElement.current;
+    if (!video) return;
+    video.pause();
+    setVideoPlaying(false);
+    setVideoTime(video.currentTime);
   };
 
   const exportStill = () => {
@@ -221,7 +376,7 @@ function App() {
 
   const exportMorphAnimation = async () => {
     const canvas = previewCanvas.current;
-    if (!canvas || !field || !morphField || rendererMode === "original") return;
+    if (!canvas || !field || !morphField || rendererMode === "original" || isVideoSource) return;
     const capability = getCanvasRecordingCapability(canvas);
     setAnimationCapability(capability);
     if (!capability.supported) {
@@ -229,14 +384,12 @@ function App() {
       setAnimationExportSucceeded(false);
       return;
     }
-
     setAnimationExportError(null);
     setAnimationExportSucceeded(false);
     setAnimationExporting(true);
     setMorphPlaying(false);
     setMorphEnabled(true);
     setMorphProgress(0);
-
     try {
       const result = await recordCanvasAnimation({
         canvas,
@@ -257,16 +410,19 @@ function App() {
 
   const rendererLabel = (mode: StudioRendererMode) => t(`renderer.${mode}` as const);
   const activeModeLabel = rendererLabel(rendererMode);
-  const canMorph = Boolean(field && morphField);
+  const canMorph = Boolean(field && morphField) && !isVideoSource;
   const canExportAnimation = canMorph && rendererMode !== "original" && animationCapability.supported && !animationExporting;
   const animationFormatLabel = animationCapability.supported
     ? animationCapability.preferredExtension
       ? `${animationCapability.preferredExtension.toUpperCase()} · ${animationCapability.preferredMimeType ?? "MediaRecorder"}`
       : t("export.animationBrowserDefault")
     : t("export.animationUnsupported");
+  const transportProgress = isVideoSource && videoDuration > 0 ? (videoTime / videoDuration) * 100 : morphProgress * 100;
+  const transportPlaying = isVideoSource ? videoPlaying : morphPlaying;
 
   return (
     <main className="studio-shell">
+      <video ref={videoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <header className="studio-topbar">
         <div className="brand-lockup"><strong>{brand.shortName}</strong><span>{brand.displayName}</span></div>
         <div className="release-badge">{t("status.developmentPreview")}</div>
@@ -277,8 +433,9 @@ function App() {
       </header>
 
       <aside className="source-panel">
-        <input ref={fileInput} hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "source"); event.currentTarget.value = ""; }} />
-        <input ref={morphInput} hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
+        <input ref={fileInput} data-source-kind="still" hidden disabled={animationExporting} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "source"); event.currentTarget.value = ""; }} />
+        <input ref={morphInput} data-source-kind="morph" hidden disabled={animationExporting || isVideoSource} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadRaster(file, "morph"); event.currentTarget.value = ""; }} />
+        <input ref={videoInput} data-source-kind="video" hidden disabled={animationExporting} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadVideo(file); event.currentTarget.value = ""; }} />
 
         <section className="quickstart-card" aria-label={t("guide.title")}>
           <strong>{t("guide.title")}</strong>
@@ -293,23 +450,32 @@ function App() {
 
         <div className="source-choice-row">
           <button className="source-add" disabled={animationExporting} onClick={() => fileInput.current?.click()}>＋ {t("action.addSource")}</button>
+          <button className="source-secondary" disabled={animationExporting} onClick={() => videoInput.current?.click()}>＋ {t("action.addVideo")}</button>
           <button className="source-secondary" disabled={animationExporting} onClick={addText}>＋ {t("source.text")}</button>
         </div>
-        <p className="supported-note">{t("source.supportedStill")}</p>
+        <p className="supported-note">{t("source.supportedMedia")}</p>
+        {sourceError && <p className="supported-note stage3-note" role="alert">{sourceError}</p>}
 
         <div className="section-title-row source-heading"><strong>{t("source.primary")}</strong></div>
         {hasSource ? <section className="asset-card selected"><div className="asset-thumb" /><div className="asset-meta"><strong>{sourceLabel}</strong><span>{sourceError ?? `${sourceDetail}${pointCount ? ` · ${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : ""}`}</span></div><button className="asset-menu" disabled={animationExporting}>⋮</button></section> : <button className="empty-source-card" disabled={animationExporting} onClick={() => fileInput.current?.click()}><span className="empty-source-plus">＋</span><span><strong>{t("source.emptyTitle")}</strong><small>{t("source.emptyDetail")}</small></span></button>}
 
         <div className="section-title-row source-heading morph-source-heading"><strong>{t("source.morphTarget")}</strong><span className="optional-label">{t("source.optional")}</span></div>
-        {morphLabel ? <section className="asset-card"><div className="asset-thumb" /><div className="asset-meta"><strong>{morphLabel}</strong><span>{morphField ? `${morphField.samples.length.toLocaleString(locale)} ${t("preview.elements")}` : "…"}</span></div></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => morphInput.current?.click()}>＋ {t("action.addMorphTarget")}</button>}
+        {isVideoSource ? <p className="supported-note stage3-note">{t("source.videoMorphLater")}</p> : morphLabel ? <section className="asset-card"><div className="asset-thumb" /><div className="asset-meta"><strong>{morphLabel}</strong><span>{morphField ? `${morphField.samples.length.toLocaleString(locale)} ${t("preview.elements")}` : "…"}</span></div></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => morphInput.current?.click()}>＋ {t("action.addMorphTarget")}</button>}
       </aside>
 
       <section className="canvas-column">
-        <div className="canvas-toolbar"><div className="canvas-heading"><strong>{t("preview.title")}</strong><span>{t("guide.previewHint")}</span></div><span className="mode-pill">{activeModeLabel}</span></div>
-        <section className="preview-frame"><div className="canvas-meta"><span>{t("preview.title")}</span><span>{rendererMode === "original" ? t("preview.originalSource") : pointCount ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : t("preview.fallback")}</span><span className="timecode">{morphEnabled ? `${Math.round(morphProgress * 100)}%` : "00:00:00.00"}</span></div>
+        <div className="canvas-toolbar"><div className="canvas-heading"><strong>{t("preview.title")}</strong><span>{isVideoSource ? t("guide.videoPreviewHint") : t("guide.previewHint")}</span></div><span className="mode-pill">{activeModeLabel}</span></div>
+        <section className="preview-frame"><div className="canvas-meta"><span>{t("preview.title")}</span><span>{rendererMode === "original" ? t("preview.originalSource") : pointCount ? `${pointCount.toLocaleString(locale)} ${t("preview.elements")}` : t("preview.fallback")}</span><span className="timecode">{isVideoSource ? formatTime(videoTime) : morphEnabled ? `${Math.round(morphProgress * 100)}%` : "00:00:00.00"}</span></div>
           {rendererMode === "original" ? <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} /> : <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />}
           <div className="canvas-status"><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>{rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
-        <div className="transport-bar"><button aria-label={t("morph.play")} disabled={!canMorph || animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying(true); }}>▶</button><button aria-label={t("morph.stop")} disabled={!morphPlaying || animationExporting} onClick={() => setMorphPlaying(false)}>■</button><button aria-label="Start" disabled={!canMorph || animationExporting} onClick={() => { setMorphPlaying(false); setMorphProgress(0); }}>|◀</button><button aria-label="End" disabled={!canMorph || animationExporting} onClick={() => { setMorphPlaying(false); setMorphProgress(1); }}>▶|</button><div className="transport-time">{morphEnabled ? t("preview.morph") : t("preview.stage1")}</div><input aria-label={t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={!canMorph || animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /></div>
+        <div className="transport-bar">
+          <button aria-label={isVideoSource ? t("video.play") : t("morph.play")} disabled={isVideoSource ? !hasSource || videoPlaying || animationExporting : !canMorph || animationExporting} onClick={() => { if (isVideoSource) void playVideo(); else { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying(true); } }}>▶</button>
+          <button aria-label={isVideoSource ? t("video.stop") : t("morph.stop")} disabled={!transportPlaying || animationExporting} onClick={() => { if (isVideoSource) stopVideo(); else setMorphPlaying(false); }}>■</button>
+          <button aria-label={isVideoSource ? t("video.start") : "Start"} disabled={isVideoSource ? !hasSource || animationExporting : !canMorph || animationExporting} onClick={() => { if (isVideoSource) seekVideo(0); else { setMorphPlaying(false); setMorphProgress(0); } }}>|◀</button>
+          <button aria-label={isVideoSource ? t("video.end") : "End"} disabled={isVideoSource ? !hasSource || videoDuration <= 0 || animationExporting : !canMorph || animationExporting} onClick={() => { if (isVideoSource) seekVideo(1); else { setMorphPlaying(false); setMorphProgress(1); } }}>▶|</button>
+          <div className="transport-time">{isVideoSource ? t("preview.video") : morphEnabled ? t("preview.morph") : t("preview.stage1")}</div>
+          <input aria-label={isVideoSource ? t("video.timelinePosition") : t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(transportProgress)} disabled={isVideoSource ? !hasSource || videoDuration <= 0 || animationExporting : !canMorph || animationExporting} onChange={(e) => { const progress = Number(e.target.value) / 100; if (isVideoSource) seekVideo(progress); else { setMorphPlaying(false); setMorphProgress(progress); } }} />
+        </div>
       </section>
 
       <aside className="inspector-panel">
@@ -319,9 +485,9 @@ function App() {
           {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
           <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
-        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{!canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
-        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">4</span><div><h2>{t("export.still")}</h2><p>{t("guide.exportHint")}</p></div></div><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={!hasSource || animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
-        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{animationExportError ?? (animationExportSucceeded ? t("export.animationSaved") : t("export.animationHint"))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportMorphAnimation()}>{animationExporting ? t("export.animationRecording") : t("export.animationButton")}</button></section>
+        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
+        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">4</span><div><h2>{t("export.still")}</h2><p>{isVideoSource ? t("guide.videoStillExportHint") : t("guide.exportHint")}</p></div></div><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={!hasSource || animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
+        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : animationExportError ?? (animationExportSucceeded ? t("export.animationSaved") : t("export.animationHint"))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportMorphAnimation()}>{animationExporting ? t("export.animationRecording") : t("export.animationButton")}</button></section>
         <section className="inspector-section local-processing-note"><strong>{t("status.localProcessing")}</strong><p>{t("status.localProcessingDetail")}</p><code>{rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</code></section>
       </aside>
     </main>

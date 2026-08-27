@@ -127,7 +127,7 @@ Outcome: existing footage becomes a first-class source that can remain original 
 
 User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
 
-Status: Development Preview release lane is closed; Stage 3 is the next implementation stage and has not yet been implemented.
+Status: in progress. The first browser video-import/transformed-playback baseline is implemented and browser-verified: browser-decodable MP4/WebM can be loaded as the main source; decoded frames feed the existing Original/Glyph/Point/Particle paths; play/pause/start/end/seek controls follow the video clock; and the currently displayed transformed frame can still be saved as PNG/WebP. Deterministic Chromium evidence verifies a visible object moving left-to-right in both Original and Point output rather than accepting timestamp/noise-only frame differences, and the existing Stage 1 + Stage 2 Chromium/WebKit regression gates remain green. Remaining Stage 3 work includes temporal-coherence hardening beyond this baseline, original and transformed media in the same composition, texture/mask/analysis-input composition paths, and the Public Alpha completion/release gate.
 
 ## Stage 4 — Procedural sources
 
