@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { brand } from "@grs/brand";
 import {
+  analysisValueToSizeScale,
+  analyzeRasterLuminance,
   applyMorphEasing,
   applyRasterMaskToPointField,
   applyRasterTextureToPointField,
@@ -112,16 +114,20 @@ function App() {
   const videoInput = useRef<HTMLInputElement>(null);
   const maskVideoInput = useRef<HTMLInputElement>(null);
   const textureVideoInput = useRef<HTMLInputElement>(null);
+  const analysisVideoInput = useRef<HTMLInputElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const originalUnderlayCanvas = useRef<HTMLCanvasElement>(null);
   const videoElement = useRef<HTMLVideoElement>(null);
   const maskVideoElement = useRef<HTMLVideoElement>(null);
   const textureVideoElement = useRef<HTMLVideoElement>(null);
+  const analysisVideoElement = useRef<HTMLVideoElement>(null);
   const videoUrl = useRef<string | null>(null);
   const maskVideoUrl = useRef<string | null>(null);
   const textureVideoUrl = useRef<string | null>(null);
+  const analysisVideoUrl = useRef<string | null>(null);
   const maskDesiredProgress = useRef(0);
   const textureDesiredProgress = useRef(0);
+  const analysisDesiredProgress = useRef(0);
 
   const [raster, setRaster] = useState<RasterPixels>();
   const [morphRaster, setMorphRaster] = useState<RasterPixels>();
@@ -143,6 +149,11 @@ function App() {
   const [textureVideoLabel, setTextureVideoLabel] = useState("");
   const [textureVideoDuration, setTextureVideoDuration] = useState(0);
   const [textureError, setTextureError] = useState<string | null>(null);
+  const [analysisVideoLabel, setAnalysisVideoLabel] = useState("");
+  const [analysisVideoDuration, setAnalysisVideoDuration] = useState(0);
+  const [analysisValue, setAnalysisValue] = useState<number | null>(null);
+  const [analysisStrength, setAnalysisStrength] = useState(1);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [rendererMode, setRendererMode] = useState<StudioRendererMode>("point");
   const [glyphPreset, setGlyphPreset] = useState<GlyphPreset>("binary");
   const [elementSize, setElementSize] = useState(1);
@@ -201,9 +212,27 @@ function App() {
     setTextureError(null);
   };
 
+  const clearAnalysisVideo = () => {
+    const analysisVideo = analysisVideoElement.current;
+    if (analysisVideo) {
+      analysisVideo.pause();
+      analysisVideo.removeAttribute("src");
+      analysisVideo.load();
+    }
+    if (analysisVideoUrl.current) URL.revokeObjectURL(analysisVideoUrl.current);
+    analysisVideoUrl.current = null;
+    analysisDesiredProgress.current = 0;
+    setAnalysisVideoLabel("");
+    setAnalysisVideoDuration(0);
+    setAnalysisValue(null);
+    setAnalysisStrength(1);
+    setAnalysisError(null);
+  };
+
   const clearVideoSource = () => {
     clearMaskVideo();
     clearTextureVideo();
+    clearAnalysisVideo();
     const video = videoElement.current;
     if (video) {
       video.pause();
@@ -228,6 +257,12 @@ function App() {
     const textureVideo = textureVideoElement.current;
     if (!textureVideo || !textureVideoUrl.current) return;
     try { setTextureRaster(rasterizeVideoElement(textureVideo)); } catch { /* keep last good texture frame */ }
+  };
+
+  const captureAnalysisFrame = () => {
+    const analysisVideo = analysisVideoElement.current;
+    if (!analysisVideo || !analysisVideoUrl.current) return;
+    try { setAnalysisValue(analyzeRasterLuminance(rasterizeVideoElement(analysisVideo))); } catch { /* keep last good analysis value */ }
   };
 
   const syncMaskToProgress = (progress: number) => {
@@ -270,15 +305,37 @@ function App() {
     textureVideo.currentTime = targetTime;
   };
 
+  const syncAnalysisToProgress = (progress: number) => {
+    const analysisVideo = analysisVideoElement.current;
+    if (!analysisVideo || !analysisVideoUrl.current || !Number.isFinite(analysisVideo.duration) || analysisVideo.duration <= 0) return;
+    const clampedProgress = Math.min(1, Math.max(0, progress));
+    analysisDesiredProgress.current = clampedProgress;
+    if (analysisVideo.seeking) return;
+    const targetTime = Math.min(analysisVideo.duration, clampedProgress * analysisVideo.duration);
+    if (Math.abs(analysisVideo.currentTime - targetTime) < 0.025) {
+      captureAnalysisFrame();
+      return;
+    }
+    const onSeeked = () => {
+      captureAnalysisFrame();
+      const latestTarget = Math.min(analysisVideo.duration, analysisDesiredProgress.current * analysisVideo.duration);
+      if (Math.abs(analysisVideo.currentTime - latestTarget) >= 0.05) syncAnalysisToProgress(analysisDesiredProgress.current);
+    };
+    analysisVideo.addEventListener("seeked", onSeeked, { once: true });
+    analysisVideo.currentTime = targetTime;
+  };
+
   const syncAuxiliaryVideos = (progress: number) => {
     syncMaskToProgress(progress);
     syncTextureToProgress(progress);
+    syncAnalysisToProgress(progress);
   };
 
   useEffect(() => () => {
     if (videoUrl.current) URL.revokeObjectURL(videoUrl.current);
     if (maskVideoUrl.current) URL.revokeObjectURL(maskVideoUrl.current);
     if (textureVideoUrl.current) URL.revokeObjectURL(textureVideoUrl.current);
+    if (analysisVideoUrl.current) URL.revokeObjectURL(analysisVideoUrl.current);
   }, []);
 
   useEffect(() => {
@@ -366,7 +423,9 @@ function App() {
   const isVideoComposite = isVideoSource && rendererMode !== "original" && videoCompositeOriginal;
   const hasVideoMask = isVideoSource && Boolean(maskRaster && maskVideoLabel);
   const hasVideoTexture = isVideoSource && Boolean(textureRaster && textureVideoLabel);
-  const videoRoleSuffix = `${hasVideoTexture ? ` · ${t("preview.videoTextured")}` : ""}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}`;
+  const hasVideoAnalysis = isVideoSource && Boolean(analysisVideoLabel) && analysisValue !== null;
+  const effectiveElementSize = elementSize * (hasVideoAnalysis ? analysisValueToSizeScale(analysisValue ?? 0.5, analysisStrength) : 1);
+  const videoRoleSuffix = `${hasVideoTexture ? ` · ${t("preview.videoTextured")}` : ""}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}${hasVideoAnalysis ? ` · ${t("preview.videoAnalyzed")}` : ""}`;
 
   useEffect(() => {
     if (!morphPlaying || !morphEnabled || !morphPacked || isVideoSource) return;
@@ -524,6 +583,44 @@ function App() {
     }
   };
 
+  const loadAnalysisVideo = async (file: File) => {
+    if (animationExporting || !isVideoSource) return;
+    const analysisVideo = analysisVideoElement.current;
+    if (!analysisVideo) return;
+    clearAnalysisVideo();
+    setAnalysisError(null);
+    const url = URL.createObjectURL(file);
+    analysisVideoUrl.current = url;
+    try {
+      analysisVideo.muted = true;
+      analysisVideo.playsInline = true;
+      analysisVideo.preload = "auto";
+      await new Promise<void>((resolve, reject) => {
+        const onLoaded = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error("analysis-video-decode-failed")); };
+        const cleanup = () => {
+          analysisVideo.removeEventListener("loadeddata", onLoaded);
+          analysisVideo.removeEventListener("error", onError);
+        };
+        analysisVideo.addEventListener("loadeddata", onLoaded, { once: true });
+        analysisVideo.addEventListener("error", onError, { once: true });
+        analysisVideo.src = url;
+        analysisVideo.load();
+      });
+      setAnalysisVideoLabel(file.name);
+      setAnalysisVideoDuration(Number.isFinite(analysisVideo.duration) ? analysisVideo.duration : 0);
+      captureAnalysisFrame();
+      const mainVideo = videoElement.current;
+      const progress = mainVideo && Number.isFinite(mainVideo.duration) && mainVideo.duration > 0
+        ? mainVideo.currentTime / mainVideo.duration
+        : 0;
+      syncAnalysisToProgress(progress);
+    } catch {
+      clearAnalysisVideo();
+      setAnalysisError(t("source.analysisVideoImportFailed"));
+    }
+  };
+
   const addText = () => {
     if (animationExporting) return;
     const text = window.prompt(t("source.textPrompt"), "GRS");
@@ -654,6 +751,7 @@ function App() {
       <video ref={videoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <video ref={maskVideoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <video ref={textureVideoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
+      <video ref={analysisVideoElement} className="source-video-element" muted playsInline preload="auto" aria-hidden="true" />
       <header className="studio-topbar">
         <div className="brand-lockup"><strong>{brand.shortName}</strong><span>{brand.displayName}</span></div>
         <div className="release-badge">{t("status.developmentPreview")}</div>
@@ -669,6 +767,7 @@ function App() {
         <input ref={videoInput} data-source-kind="video" hidden disabled={animationExporting} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadVideo(file); event.currentTarget.value = ""; }} />
         <input ref={maskVideoInput} data-source-kind="video-mask" hidden disabled={animationExporting || !isVideoSource} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadMaskVideo(file); event.currentTarget.value = ""; }} />
         <input ref={textureVideoInput} data-source-kind="video-texture" hidden disabled={animationExporting || !isVideoSource} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadTextureVideo(file); event.currentTarget.value = ""; }} />
+        <input ref={analysisVideoInput} data-source-kind="video-analysis" hidden disabled={animationExporting || !isVideoSource} type="file" accept="video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAnalysisVideo(file); event.currentTarget.value = ""; }} />
 
         <section className="quickstart-card" aria-label={t("guide.title")}>
           <strong>{t("guide.title")}</strong>
@@ -703,6 +802,10 @@ function App() {
           <div className="section-title-row source-heading morph-source-heading"><strong>{t("source.maskVideo")}</strong><span className="optional-label">{t("source.optional")}</span></div>
           {maskVideoLabel ? <section className="asset-card" data-source-role="mask"><div className="asset-thumb" /><div className="asset-meta"><strong>{maskVideoLabel}</strong><span>{t("source.maskVideoDetail")}{maskVideoDuration > 0 ? ` · ${maskVideoDuration.toFixed(2)} ${t("morph.seconds")}` : ""}</span></div><button className="asset-menu" aria-label={t("action.removeMaskVideo")} disabled={animationExporting} onClick={clearMaskVideo}>×</button></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => maskVideoInput.current?.click()}>＋ {t("action.addMaskVideo")}</button>}
           {maskError && <p className="supported-note stage3-note" role="alert">{maskError}</p>}
+
+          <div className="section-title-row source-heading morph-source-heading"><strong>{t("source.analysisVideo")}</strong><span className="optional-label">{t("source.optional")}</span></div>
+          {analysisVideoLabel ? <section className="asset-card" data-source-role="analysis"><div className="asset-thumb" /><div className="asset-meta"><strong>{analysisVideoLabel}</strong><span>{t("source.analysisVideoDetail")}{analysisVideoDuration > 0 ? ` · ${analysisVideoDuration.toFixed(2)} ${t("morph.seconds")}` : ""}</span></div><button className="asset-menu" aria-label={t("action.removeAnalysisVideo")} disabled={animationExporting} onClick={clearAnalysisVideo}>×</button></section> : <button className="asset-add-row" disabled={animationExporting} onClick={() => analysisVideoInput.current?.click()}>＋ {t("action.addAnalysisVideo")}</button>}
+          {analysisError && <p className="supported-note stage3-note" role="alert">{analysisError}</p>}
         </>}
       </aside>
 
@@ -712,9 +815,9 @@ function App() {
           {rendererMode === "original" ? (
             <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} />
           ) : isVideoComposite ? (
-            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={videoOriginalOpacity} positions={previewPositions} colors={previewColors} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
+            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={videoOriginalOpacity} positions={previewPositions} colors={previewColors} mode={rendererMode} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           ) : (
-            <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={elementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
+            <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           )}
           <div className="canvas-status"><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
         <div className="transport-bar">
@@ -732,7 +835,7 @@ function App() {
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
           {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
-          {isVideoSource && rendererMode !== "original" && <><div className="toggle-row"><span>{t("video.compositeOriginal")}</span><button aria-label={t("video.compositeOriginal")} disabled={animationExporting} className={`toggle ${videoCompositeOriginal ? "on" : ""}`} aria-pressed={videoCompositeOriginal} onClick={() => setVideoCompositeOriginal((value) => !value)} /></div>{videoCompositeOriginal && <label>{t("video.originalOpacity")}<div className="range-row"><input aria-label={t("video.originalOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacity * 100)} disabled={animationExporting} onChange={(e) => setVideoOriginalOpacity(Number(e.target.value) / 100)} /><output>{Math.round(videoOriginalOpacity * 100)}%</output></div></label>}{hasVideoMask && <><label>{t("video.maskStrength")}<div className="range-row"><input aria-label={t("video.maskStrength")} type="range" min="0" max="100" value={Math.round(maskStrength * 100)} disabled={animationExporting} onChange={(e) => setMaskStrength(Number(e.target.value) / 100)} /><output>{Math.round(maskStrength * 100)}%</output></div></label><div className="toggle-row"><span>{t("video.maskInvert")}</span><button aria-label={t("video.maskInvert")} disabled={animationExporting} className={`toggle ${maskInvert ? "on" : ""}`} aria-pressed={maskInvert} onClick={() => setMaskInvert((value) => !value)} /></div></>}</>}
+          {isVideoSource && rendererMode !== "original" && <><div className="toggle-row"><span>{t("video.compositeOriginal")}</span><button aria-label={t("video.compositeOriginal")} disabled={animationExporting} className={`toggle ${videoCompositeOriginal ? "on" : ""}`} aria-pressed={videoCompositeOriginal} onClick={() => setVideoCompositeOriginal((value) => !value)} /></div>{videoCompositeOriginal && <label>{t("video.originalOpacity")}<div className="range-row"><input aria-label={t("video.originalOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacity * 100)} disabled={animationExporting} onChange={(e) => setVideoOriginalOpacity(Number(e.target.value) / 100)} /><output>{Math.round(videoOriginalOpacity * 100)}%</output></div></label>}{hasVideoMask && <><label>{t("video.maskStrength")}<div className="range-row"><input aria-label={t("video.maskStrength")} type="range" min="0" max="100" value={Math.round(maskStrength * 100)} disabled={animationExporting} onChange={(e) => setMaskStrength(Number(e.target.value) / 100)} /><output>{Math.round(maskStrength * 100)}%</output></div></label><div className="toggle-row"><span>{t("video.maskInvert")}</span><button aria-label={t("video.maskInvert")} disabled={animationExporting} className={`toggle ${maskInvert ? "on" : ""}`} aria-pressed={maskInvert} onClick={() => setMaskInvert((value) => !value)} /></div></>}{hasVideoAnalysis && <><label>{t("video.analysisStrength")}<div className="range-row"><input aria-label={t("video.analysisStrength")} type="range" min="0" max="100" value={Math.round(analysisStrength * 100)} disabled={animationExporting} onChange={(e) => setAnalysisStrength(Number(e.target.value) / 100)} /><output>{Math.round(analysisStrength * 100)}%</output></div></label><label>{t("video.analysisValue")}<code>{Math.round((analysisValue ?? 0) * 100)}%</code></label></>}</>}
           <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>

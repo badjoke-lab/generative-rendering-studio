@@ -61,3 +61,4 @@ export * from "./sampling";
 export * from "./morph";
 export * from "./mask";
 export * from "./texture";
+export * from "./analysis";
