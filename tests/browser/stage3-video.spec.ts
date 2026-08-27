@@ -19,7 +19,7 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.locator(".asset-meta strong").filter({ hasText: "stage3-moving-square.webm" })).toBeVisible();
   await expect(page.locator(".asset-meta")).toContainText("Video");
-  await expect(page.getByText(/Video-to-source Morph is not part of this Stage 3 baseline/)).toBeVisible();
+  await expect(page.locator(".source-panel .stage3-note")).toContainText("Video-to-source Morph is not part of this Stage 3 baseline");
 
   await page.getByRole("button", { name: "Point", exact: true }).click();
   const preview = page.locator(".preview-frame");
