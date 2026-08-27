@@ -66,6 +66,17 @@ Repository CI performs the deterministic and repeatable Chromium path. The file 
 
 The downloaded PNG and WebP outputs are decoded during the browser gate and retained for independent inspection. The downloaded short animation is replayed as a real video resource, sampled through the A-to-B transition, and retained together with start/middle/end replay frames. Recording-time and recovered UI frames are retained separately so the control-state transition remains inspectable.
 
+## Post-release Morph correspondence correction
+
+Real-device testing after the first public deployment exposed horizontal scanline/banding structure in intermediate Point Morph frames. The correction is verified as a visual-quality regression fix rather than accepted only because both endpoints still render.
+
+- [x] Core Morph correspondence preserves angular/spatial locality on the dedicated synthetic regression fixture instead of relying on global Y/X scanline rank ordering.
+- [x] Retained Chromium evidence includes circle -> square and star -> triangle Morph frames at 0%, 50%, and 100% for direct inspection.
+- [x] The 50% circle -> square and star -> triangle frames no longer show the reported horizontal scanline/banding failure mode and do not introduce a comparably severe hole, collapse, or correspondence reset.
+- [x] Both test pairs still reach their A and B endpoints and the existing real animation replay/export gate remains green.
+
+The correction evidence was inspected from the green PR browser run before these items were marked complete. The circle -> square midpoint remains filled with a rounded-square intermediate, while the star -> triangle midpoint remains continuous without the real-device horizontal scanline structure.
+
 ## Deployment gate
 
 The Development Preview may be deployed only after repository CI, including the real Chromium smoke suite, is green and the critical visual/output checks above have been performed on the candidate intended for deployment.

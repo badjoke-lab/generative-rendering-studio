@@ -17,3 +17,12 @@ This repository is under active development. The current working codename is **G
 The first usable release focuses on importing images, SVG and text, rendering them as glyphs, points and particles, and morphing between sources with coherent motion.
 
 The project is browser-first and designed around local processing. Public claims will track shipped behavior rather than unreleased internal plans.
+
+## Inspiration / References
+
+Visual references that informed exploration of this tool. GRS is an independent implementation; these links are attribution/reference and are not upstream code dependencies.
+
+- Praveen Kumar (`@praveenisomer`): https://x.com/praveenisomer/status/2092222962153697540
+- Ann Nguyen (`@ann_nnng`): https://x.com/ann_nnng/status/2092263948108407278
+
+If an official project page or source repository for either reference is confirmed, prefer that primary project/source link here alongside or instead of the X post.

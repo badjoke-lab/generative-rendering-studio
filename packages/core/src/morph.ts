@@ -13,6 +13,9 @@ export interface MorphMapping {
   readonly pairs: readonly MorphPair[];
 }
 
+const MORPH_ANGLE_BUCKETS = 128;
+const TAU = Math.PI * 2;
+
 function colorOf(field: PointField, index: number): Rgba {
   return field.samples[index]?.color ?? [1, 1, 1, 1];
 }
@@ -30,30 +33,109 @@ function sourceIndexForTarget(index: number, sourceCount: number, targetCount: n
   return Math.min(sourceCount - 1, Math.round(normalizedIndex(index, targetCount) * (sourceCount - 1)));
 }
 
-function spatialOrder(field: PointField) {
-  return field.samples
-    .map((sample, index) => ({ index, x: sample.position[0], y: sample.position[1] }))
-    .sort((a, b) => a.y - b.y || a.x - b.x || a.index - b.index)
-    .map((entry) => entry.index);
+function centroid(field: PointField) {
+  if (field.samples.length === 0) return { x: 0, y: 0 };
+  let x = 0;
+  let y = 0;
+  for (const sample of field.samples) {
+    x += sample.position[0];
+    y += sample.position[1];
+  }
+  return { x: x / field.samples.length, y: y / field.samples.length };
+}
+
+function angularBuckets(field: PointField, bucketCount = MORPH_ANGLE_BUCKETS) {
+  const buckets: Array<Array<{ index: number; radius: number; x: number; y: number }>> = Array.from(
+    { length: bucketCount },
+    () => [],
+  );
+  if (field.samples.length === 0) return buckets.map(() => [] as number[]);
+
+  const center = centroid(field);
+  field.samples.forEach((sample, index) => {
+    const x = sample.position[0];
+    const y = sample.position[1];
+    const dx = x - center.x;
+    const dy = y - center.y;
+    const angle = (Math.atan2(dy, dx) + TAU) % TAU;
+    const bucket = Math.min(bucketCount - 1, Math.floor((angle / TAU) * bucketCount));
+    buckets[bucket].push({ index, radius: Math.hypot(dx, dy), x, y });
+  });
+
+  return buckets.map((entries) => entries
+    .sort((a, b) => a.radius - b.radius || a.x - b.x || a.y - b.y || a.index - b.index)
+    .map((entry) => entry.index));
+}
+
+function nearestNonEmptyBucket(buckets: readonly (readonly number[])[], index: number) {
+  if (buckets[index]?.length) return buckets[index];
+  for (let distance = 1; distance < buckets.length; distance += 1) {
+    const lower = buckets[(index - distance + buckets.length) % buckets.length];
+    if (lower?.length) return lower;
+    const upper = buckets[(index + distance) % buckets.length];
+    if (upper?.length) return upper;
+  }
+  return [] as readonly number[];
+}
+
+function outputCountByBucket(
+  fromBuckets: readonly (readonly number[])[],
+  toBuckets: readonly (readonly number[])[],
+  outputCount: number,
+) {
+  if (outputCount <= 0) return fromBuckets.map(() => 0);
+  const fromTotal = Math.max(1, fromBuckets.reduce((sum, bucket) => sum + bucket.length, 0));
+  const toTotal = Math.max(1, toBuckets.reduce((sum, bucket) => sum + bucket.length, 0));
+  const weights = fromBuckets.map((bucket, index) => Math.max(
+    bucket.length / fromTotal,
+    (toBuckets[index]?.length ?? 0) / toTotal,
+  ));
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+  if (weightTotal <= 0) return fromBuckets.map(() => 0);
+
+  const raw = weights.map((weight) => (weight / weightTotal) * outputCount);
+  const counts = raw.map((value) => Math.floor(value));
+  let remaining = outputCount - counts.reduce((sum, value) => sum + value, 0);
+  const remainderOrder = raw
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+
+  for (let i = 0; i < remainderOrder.length && remaining > 0; i += 1, remaining -= 1) {
+    counts[remainderOrder[i].index] += 1;
+  }
+  return counts;
+}
+
+function sampledBucketIndex(bucket: readonly number[], index: number, outputCount: number) {
+  if (bucket.length === 0) return 0;
+  return bucket[sourceIndexForTarget(index, bucket.length, outputCount)] ?? bucket[0] ?? 0;
 }
 
 export function createMorphMapping(from: PointField, to: PointField): MorphMapping {
   const count = Math.max(from.samples.length, to.samples.length);
   if (count === 0) return { pairs: [] };
 
-  const fromOrder = spatialOrder(from);
-  const toOrder = spatialOrder(to);
+  const fromBuckets = angularBuckets(from);
+  const toBuckets = angularBuckets(to);
+  const bucketCounts = outputCountByBucket(fromBuckets, toBuckets, count);
   const pairs: MorphPair[] = [];
 
-  for (let i = 0; i < count; i += 1) {
-    const fromIndex = fromOrder[sourceIndexForTarget(i, fromOrder.length, count)] ?? 0;
-    const toIndex = toOrder[sourceIndexForTarget(i, toOrder.length, count)] ?? 0;
-    pairs.push({
-      from: positionOf(from, fromIndex),
-      to: positionOf(to, toIndex),
-      fromColor: colorOf(from, fromIndex),
-      toColor: colorOf(to, toIndex),
-    });
+  for (let bucketIndex = 0; bucketIndex < bucketCounts.length; bucketIndex += 1) {
+    const bucketCount = bucketCounts[bucketIndex] ?? 0;
+    if (bucketCount <= 0) continue;
+    const fromBucket = nearestNonEmptyBucket(fromBuckets, bucketIndex);
+    const toBucket = nearestNonEmptyBucket(toBuckets, bucketIndex);
+
+    for (let i = 0; i < bucketCount; i += 1) {
+      const fromIndex = sampledBucketIndex(fromBucket, i, bucketCount);
+      const toIndex = sampledBucketIndex(toBucket, i, bucketCount);
+      pairs.push({
+        from: positionOf(from, fromIndex),
+        to: positionOf(to, toIndex),
+        fromColor: colorOf(from, fromIndex),
+        toColor: colorOf(to, toIndex),
+      });
+    }
   }
 
   return { pairs };
