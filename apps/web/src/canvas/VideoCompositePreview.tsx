@@ -1,7 +1,14 @@
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type { RasterPixels } from "@grs/core";
 import { OriginalPreview } from "./OriginalPreview";
 import { WebGLPreview, type GlyphPreset, type PreviewRendererMode } from "../webgl/WebGLPreview";
+
+const layerStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  minWidth: 0,
+  minHeight: 0,
+};
 
 export function VideoCompositePreview({
   originalCanvasRef,
@@ -31,11 +38,18 @@ export function VideoCompositePreview({
   glyphPreset: GlyphPreset;
 }) {
   return (
-    <div className="video-composite-preview" data-video-composite="true">
-      <div className="video-composite-underlay" style={{ opacity: Math.min(1, Math.max(0, originalOpacity)) }}>
+    <div
+      className="video-composite-preview"
+      data-video-composite="true"
+      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+    >
+      <div
+        className="video-composite-underlay"
+        style={{ ...layerStyle, opacity: Math.min(1, Math.max(0, originalOpacity)) }}
+      >
         <OriginalPreview canvasRef={originalCanvasRef} raster={raster} background={background} />
       </div>
-      <div className="video-composite-overlay">
+      <div className="video-composite-overlay" style={layerStyle}>
         <WebGLPreview
           canvasRef={transformedCanvasRef}
           positions={positions}
