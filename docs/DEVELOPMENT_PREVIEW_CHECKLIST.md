@@ -28,6 +28,7 @@ Video import, procedural sources, full Layers/Timeline/Keyframes, audio/data mod
 - [x] Stage 2 animation export code rejects unsupported recording environments and invalid/empty recordings.
 - [x] Real Chromium smoke tests pass against the production build in repository CI.
 - [x] Chromium smoke covers PNG/SVG import, Text creation, English/Japanese locale persistence, Original/Glyph/Point/Particle selection, Source A/B Morph controls, still download, short animation recording when supported, and narrow viewport survival.
+- [x] A 390x844 Japanese first-run browser test proves there is no horizontal overflow, the top save action remains on-screen and one-line, the preview reaches the first viewport, and non-working later-stage controls are not exposed as usable actions.
 
 The real-browser CI uses Playwright with the production Vite build. Failure traces/screenshots are retained as CI artifacts so a browser regression is inspectable rather than reduced to a manual claim.
 
@@ -47,6 +48,8 @@ The release lane also retains a `preview-evidence-<commit>` artifact containing 
 - [x] Short animation export is disabled before recording begins when the current browser/device does not expose the required recording capability.
 - [x] Source, renderer, appearance, Morph, transport and still-export mutation controls are locked during animation recording.
 - [x] Animation export reports success/failure and leaves the preview on the final Morph frame after a successful recording.
+- [x] The first-run UI explains the usable Stage 1 + Stage 2 path in user terms: add material, choose a look, optionally add a second material for Morph, then save.
+- [x] Development Preview does not expose non-functional Video / 3D / Timeline / Effects / Layers controls as if they were usable features.
 
 ## Release-candidate verification
 
@@ -59,6 +62,7 @@ Repository CI performs the deterministic and repeatable Chromium path. The file 
 - [x] Confirm recording-time control lock/recovery feels correct in the browser rather than only being DOM-disabled.
 - [x] Repeat the critical import/Morph/export path in a second browser family where practical. The focused second-family gate uses WebKit; hosted headless Firefox was also probed but did not expose WebGL2 in that runner environment.
 - [x] Visually inspect the retained 390x844 Chromium viewport for catastrophic overlap or inaccessible controls; full mobile authoring is not yet promised.
+- [x] Visually inspect the retained 390x844 Japanese first-run screenshot specifically for the reported mobile failure mode: wrapped/off-screen top actions, vertically broken labels, misleading future-stage controls, and a preview pushed out of the initial viewport.
 
 The downloaded PNG and WebP outputs are decoded during the browser gate and retained for independent inspection. The downloaded short animation is replayed as a real video resource, sampled through the A-to-B transition, and retained together with start/middle/end replay frames. Recording-time and recovered UI frames are retained separately so the control-state transition remains inspectable.
 
