@@ -1,0 +1,13 @@
+@media (min-width: 761px) {
+  .source-panel .quickstart-card .workflow-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px;
+  }
+
+  .source-panel .quickstart-card .workflow-steps > span {
+    min-height: 38px;
+    white-space: nowrap;
+    word-break: keep-all;
+    overflow: hidden;
+  }
+}
