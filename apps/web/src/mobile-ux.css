@@ -31,9 +31,9 @@ body { overflow-x: hidden; }
 .workflow-steps > span.active b { background: #7548ef; color: white; }
 .workflow-steps > span.done b { background: #2d665c; color: white; }
 
-.source-choice-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 7px; }
-.source-choice-row .source-add { min-width: 0; }
-.source-secondary { border: 1px solid #2a3140; border-radius: 6px; background: #151a22; color: #d7dbe4; padding: 10px 12px; cursor: pointer; white-space: nowrap; }
+.source-choice-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+.source-choice-row .source-add { grid-column: 1 / -1; min-width: 0; }
+.source-secondary { width: 100%; border: 1px solid #2a3140; border-radius: 6px; background: #151a22; color: #d7dbe4; padding: 10px 12px; cursor: pointer; white-space: nowrap; }
 .supported-note { margin: 7px 0 12px; color: #7f8796; font-size: 9px; line-height: 1.4; }
 .stage3-note { padding: 8px 9px; border: 1px solid #293044; border-radius: 6px; background: #10141c; }
 .source-heading { margin-top: 11px; }
