@@ -28,6 +28,10 @@ const rendererModes = ["original", "glyph", "point", "particle"] as const;
 type StudioRendererMode = "original" | PreviewRendererMode;
 type SourceKind = "still" | "text" | "video";
 
+type VideoFrameCallbackElement = HTMLVideoElement & {
+  requestVideoFrameCallback?: (callback: (now: number, metadata: { mediaTime?: number }) => void) => number;
+};
+
 function rasterizeDrawable(drawable: CanvasImageSource, sourceWidth: number, sourceHeight: number) {
   const maxSide = 720;
   const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
@@ -61,6 +65,27 @@ function rasterizeVideoElement(video: HTMLVideoElement) {
     throw new Error("video-frame-unavailable");
   }
   return rasterizeDrawable(video, video.videoWidth, video.videoHeight);
+}
+
+function waitForVideoFramePresentation(video: HTMLVideoElement) {
+  return new Promise<void>((resolve) => {
+    const frameVideo = video as VideoFrameCallbackElement;
+    const requestVideoFrame = frameVideo.requestVideoFrameCallback;
+    if (typeof requestVideoFrame === "function") {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      requestVideoFrame.call(frameVideo, done);
+      // Some browser runners expose the callback API but may suppress callbacks for a fully
+      // off-screen paused element. Keep a presentation-turn fallback rather than hanging import.
+      setTimeout(done, 350);
+      return;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
 }
 
 function rasterizeText(text: string) {
@@ -277,9 +302,11 @@ function App() {
       return;
     }
     const onSeeked = () => {
-      captureMaskFrame();
-      const latestTarget = Math.min(maskVideo.duration, maskDesiredProgress.current * maskVideo.duration);
-      if (Math.abs(maskVideo.currentTime - latestTarget) >= 0.05) syncMaskToProgress(maskDesiredProgress.current);
+      void waitForVideoFramePresentation(maskVideo).then(() => {
+        captureMaskFrame();
+        const latestTarget = Math.min(maskVideo.duration, maskDesiredProgress.current * maskVideo.duration);
+        if (Math.abs(maskVideo.currentTime - latestTarget) >= 0.05) syncMaskToProgress(maskDesiredProgress.current);
+      });
     };
     maskVideo.addEventListener("seeked", onSeeked, { once: true });
     maskVideo.currentTime = targetTime;
@@ -297,9 +324,11 @@ function App() {
       return;
     }
     const onSeeked = () => {
-      captureTextureFrame();
-      const latestTarget = Math.min(textureVideo.duration, textureDesiredProgress.current * textureVideo.duration);
-      if (Math.abs(textureVideo.currentTime - latestTarget) >= 0.05) syncTextureToProgress(textureDesiredProgress.current);
+      void waitForVideoFramePresentation(textureVideo).then(() => {
+        captureTextureFrame();
+        const latestTarget = Math.min(textureVideo.duration, textureDesiredProgress.current * textureVideo.duration);
+        if (Math.abs(textureVideo.currentTime - latestTarget) >= 0.05) syncTextureToProgress(textureDesiredProgress.current);
+      });
     };
     textureVideo.addEventListener("seeked", onSeeked, { once: true });
     textureVideo.currentTime = targetTime;
@@ -317,9 +346,11 @@ function App() {
       return;
     }
     const onSeeked = () => {
-      captureAnalysisFrame();
-      const latestTarget = Math.min(analysisVideo.duration, analysisDesiredProgress.current * analysisVideo.duration);
-      if (Math.abs(analysisVideo.currentTime - latestTarget) >= 0.05) syncAnalysisToProgress(analysisDesiredProgress.current);
+      void waitForVideoFramePresentation(analysisVideo).then(() => {
+        captureAnalysisFrame();
+        const latestTarget = Math.min(analysisVideo.duration, analysisDesiredProgress.current * analysisVideo.duration);
+        if (Math.abs(analysisVideo.currentTime - latestTarget) >= 0.05) syncAnalysisToProgress(analysisDesiredProgress.current);
+      });
     };
     analysisVideo.addEventListener("seeked", onSeeked, { once: true });
     analysisVideo.currentTime = targetTime;
@@ -493,6 +524,7 @@ function App() {
         video.src = url;
         video.load();
       });
+      await waitForVideoFramePresentation(video);
       const pixels = rasterizeVideoElement(video);
       setSourceKind("video");
       setRaster(pixels);
@@ -530,6 +562,7 @@ function App() {
         maskVideo.src = url;
         maskVideo.load();
       });
+      await waitForVideoFramePresentation(maskVideo);
       setMaskVideoLabel(file.name);
       setMaskVideoDuration(Number.isFinite(maskVideo.duration) ? maskVideo.duration : 0);
       captureMaskFrame();
@@ -568,6 +601,7 @@ function App() {
         textureVideo.src = url;
         textureVideo.load();
       });
+      await waitForVideoFramePresentation(textureVideo);
       setTextureVideoLabel(file.name);
       setTextureVideoDuration(Number.isFinite(textureVideo.duration) ? textureVideo.duration : 0);
       setUseSourceColor(true);
@@ -607,6 +641,7 @@ function App() {
         analysisVideo.src = url;
         analysisVideo.load();
       });
+      await waitForVideoFramePresentation(analysisVideo);
       setAnalysisVideoLabel(file.name);
       setAnalysisVideoDuration(Number.isFinite(analysisVideo.duration) ? analysisVideo.duration : 0);
       captureAnalysisFrame();
@@ -652,8 +687,10 @@ function App() {
       return;
     }
     const onSeeked = () => {
-      try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
-      if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
+      void waitForVideoFramePresentation(video).then(() => {
+        try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
+        if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
+      });
     };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.currentTime = nextTime;
