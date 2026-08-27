@@ -174,11 +174,15 @@ test("imports a browser-decodable video and transforms changing frames", async (
   expect(zeroStrength.count).toBeGreaterThan(pointSeeked.count * 0.45);
 
   await page.getByLabel("Mask strength").fill("100");
+  await page.getByRole("button", { name: "Invert mask" }).click();
+  await expect(page.getByRole("button", { name: "Invert mask" })).toHaveAttribute("aria-pressed", "false");
   await page.getByLabel("Video position").fill("20");
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeLessThanOrEqual(21);
   await expect.poll(() => auxiliaryVideoProgress(page)).toBeGreaterThan(0.12);
   await expect.poll(() => auxiliaryVideoProgress(page)).toBeLessThan(0.28);
   await page.waitForTimeout(150);
+  const syncedVisible = await brightCentroid(page, 80);
+  expect(syncedVisible.count).toBeGreaterThan(30);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-mask-synced-seek-20.png` });
 
   await page.getByRole("button", { name: "Remove mask video" }).click();
