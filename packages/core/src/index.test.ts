@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, PROJECT_SCHEMA_VERSION, sampleRasterToPointField } from "./index";
+import { createEmptyProject, PROJECT_SCHEMA_VERSION, resolveSourceRole, sampleRasterToPointField } from "./index";
 
 describe("project document", () => {
   it("creates a deterministic brand-neutral empty document", () => {
@@ -11,6 +11,13 @@ describe("project document", () => {
       renders: [],
     });
     expect(JSON.stringify(project)).not.toMatch(/GRS|Generative Rendering Studio/i);
+  });
+
+  it("keeps existing sources visual by default while allowing explicit auxiliary roles", () => {
+    expect(resolveSourceRole({})).toBe("visual");
+    expect(resolveSourceRole({ role: "texture" })).toBe("texture");
+    expect(resolveSourceRole({ role: "mask" })).toBe("mask");
+    expect(resolveSourceRole({ role: "analysis" })).toBe("analysis");
   });
 });
 
