@@ -61,7 +61,7 @@ Initial still output targets include PNG and WebP where supported.
 
 Outcome: users can import their own still sources, transform their visual representation, adjust the look, and export a still image locally.
 
-User behavior: add an image, SVG, or text source; switch between Original/Glyph/Point/Particle; adjust appearance controls; preview the result; export a still image as PNG or WebP without requiring a timeline.
+User behavior: add an image, SVG, or text source; switch between Original/Glyph/Point/Particle; adjust appearance controls; preview the result; export the current frame as PNG or WebP without requiring a timeline.
 
 Status: completed on main.
 
