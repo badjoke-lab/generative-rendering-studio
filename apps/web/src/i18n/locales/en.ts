@@ -69,7 +69,6 @@ export const en = {
   "inspector.dither": "Dither",
   "inspector.renderColor": "Render Color",
   "inspector.sourceColor": "Source Color",
-  "inspector.textureColorActive": "Texture color",
   "inspector.background": "Background",
   "morph.title": "Morph",
   "morph.enabled": "Enable Morph",
