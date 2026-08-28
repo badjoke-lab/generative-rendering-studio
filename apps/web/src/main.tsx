@@ -13,9 +13,11 @@ import {
   sampleRasterToPointField,
   type MorphEasing,
   type PointField,
+  type ProceduralSourceKind,
   type RasterPixels,
 } from "@grs/core";
 import { OriginalPreview } from "./canvas/OriginalPreview";
+import { ProceduralSourcePanel } from "./components/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
 import { composeCanvasLayers } from "./export/composeCanvasLayers";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
@@ -26,7 +28,7 @@ import "./mobile-ux.css";
 
 const rendererModes = ["original", "glyph", "point", "particle"] as const;
 type StudioRendererMode = "original" | PreviewRendererMode;
-type SourceKind = "still" | "text" | "video";
+type SourceKind = "still" | "text" | "video" | "procedural";
 
 type VideoFrameCallbackElement = HTMLVideoElement & {
   requestVideoFrameCallback?: (callback: (now: number, metadata: { mediaTime?: number }) => void) => number;
@@ -370,8 +372,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!raster) setSourceDetail(t("source.fallbackDetail"));
-  }, [locale, raster, t]);
+    if (!raster && sourceKind !== "procedural") setSourceDetail(t("source.fallbackDetail"));
+  }, [locale, raster, sourceKind, t]);
 
   useEffect(() => {
     if (!raster) return;
@@ -401,7 +403,7 @@ function App() {
   useEffect(() => {
     const frame = requestAnimationFrame(() => setAnimationCapability(getCanvasRecordingCapability(previewCanvas.current)));
     return () => cancelAnimationFrame(frame);
-  }, [rendererMode, raster]);
+  }, [field, rendererMode, raster, sourceKind]);
 
   useEffect(() => {
     if (sourceKind !== "video" || !videoPlaying) return;
@@ -430,7 +432,8 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, [sourceKind, videoPlaying]);
 
-  const hasSource = Boolean(raster);
+  const isProceduralSource = sourceKind === "procedural";
+  const hasSource = Boolean(raster || (isProceduralSource && field));
   const isVideoSource = sourceKind === "video";
   const texturedField = useMemo(() => {
     if (!field || !isVideoSource || !textureRaster) return field;
@@ -673,6 +676,34 @@ function App() {
     }
   };
 
+  const proceduralLabel = (kind: ProceduralSourceKind) => {
+    switch (kind) {
+      case "sphere": return t("procedural.sphere");
+      case "torus": return t("procedural.torus");
+      case "grid": return t("procedural.grid");
+      case "spiral": return t("procedural.spiral");
+    }
+  };
+
+  const useProceduralSource = (kind: ProceduralSourceKind, generatedField: PointField) => {
+    if (animationExporting) return;
+    clearVideoSource();
+    setSourceKind("procedural");
+    setRaster(undefined);
+    setField(generatedField);
+    setMorphRaster(undefined);
+    setMorphField(undefined);
+    setMorphLabel("");
+    setMorphEnabled(false);
+    setMorphPlaying(false);
+    setMorphProgress(0);
+    setSourceLabel(proceduralLabel(kind));
+    setSourceDetail(t("procedural.generatedDetail"));
+    setSourceError(null);
+    setAnimationExportSucceeded(false);
+    if (rendererMode === "original") setRendererMode("point");
+  };
+
   const seekVideo = (progress: number) => {
     const video = videoElement.current;
     if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
@@ -719,7 +750,7 @@ function App() {
   };
 
   const exportStill = () => {
-    if (animationExporting || !raster) return;
+    if (animationExporting || !hasSource) return;
     const canvas = previewCanvas.current;
     if (!canvas) return;
     const exportCanvas = isVideoComposite && originalUnderlayCanvas.current
@@ -822,6 +853,7 @@ function App() {
           <button className="source-secondary" disabled={animationExporting} onClick={() => videoInput.current?.click()}>＋ {t("action.addVideo")}</button>
           <button className="source-secondary" disabled={animationExporting} onClick={addText}>＋ {t("source.text")}</button>
         </div>
+        <ProceduralSourcePanel disabled={animationExporting} t={t} onGenerate={useProceduralSource} />
         <p className="supported-note">{t("source.supportedMedia")}</p>
         {sourceError && <p className="supported-note stage3-note" role="alert">{sourceError}</p>}
 
@@ -868,7 +900,7 @@ function App() {
       </section>
 
       <aside className="inspector-panel">
-        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
+        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
           {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
