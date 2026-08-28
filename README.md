@@ -18,7 +18,7 @@ The publicly deployed **Public Alpha** covers still-image/SVG/text rendering, Or
 
 Browser-decodable MP4/WebM can drive Original/Glyph/Point/Particle previews with video transport and temporal-coherence hardening, with an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export preserves that composition when enabled. A synchronized auxiliary video can also be used as a **Texture Video** for source-space color, a **Mask Video** for visibility, or an **Analysis Video** whose frame brightness drives transformed element size. These auxiliary roles follow normalized main-video progress and remain local to the browser/device.
 
-Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. The next implementation focus is **Stage 4 procedural sources**. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
+Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. **Stage 4 procedural sources are now in progress on main:** Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise can be generated as renderer-neutral Point Fields and rendered through compatible Glyph/Point/Particle looks. Organic/example presets remain Stage 4 work. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
 
 The project is browser-first and designed around local processing. Public claims track verified shipped behavior rather than unreleased internal plans.
 

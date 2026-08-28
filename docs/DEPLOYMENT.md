@@ -29,7 +29,7 @@ Adding a committed lockfile is a separate dependency-management improvement. Whe
 
 ## Hosting requirements
 
-The Development Preview does not require a server-side rendering service or rendering worker. The rendering and current export paths run in the user's browser/device.
+The current Public Alpha does not require a server-side rendering service or rendering worker. The rendering and current export paths run in the user's browser/device.
 
 The static host must provide:
 
@@ -43,9 +43,9 @@ Provider-specific settings are deployment details. They must not be encoded into
 
 The production Vite build uses a relative base (`./`). This keeps the same built artifact valid both at a hostname root and below a path prefix such as a GitHub Pages project site. Deployment must not rewrite the generated HTML merely to repair host-specific asset paths.
 
-## GitHub Pages Development Preview
+## GitHub Pages deployment
 
-The repository contains `.github/workflows/deploy-development-preview.yml` for the first public Development Preview. It is deliberately downstream of repository CI rather than a second independent build path.
+The repository retains the historical workflow filename `.github/workflows/deploy-development-preview.yml`. It now deploys the current browser release and remains deliberately downstream of repository CI rather than becoming a second independent build path.
 
 When a `main` CI run completes successfully, the deployment workflow:
 
@@ -75,7 +75,7 @@ A compatible Cloudflare Pages project can use:
 
 A codename-based preview hostname may be used before final branding is selected. Changing the hostname or public product name must not require project-schema migration.
 
-For the Development Preview, prefer deployment of the already tested CI artifact where the provider permits direct static artifact deployment. A provider-side rebuild must be treated as a distinct candidate if its resolved dependencies or bytes differ.
+For public browser releases, prefer deployment of the already tested CI artifact where the provider permits direct static artifact deployment. A provider-side rebuild must be treated as a distinct candidate if its resolved dependencies or bytes differ.
 
 ## Release order
 
@@ -86,8 +86,8 @@ For the Development Preview, prefer deployment of the already tested CI artifact
 5. ensure the deployed build is produced from the same tested commit and dependency-install contract;
 6. if the deployed build or dependency resolution differs from the smoke-tested candidate, repeat the affected checks.
 
-## Development Preview scope
+## Current public scope
 
-The first public Development Preview exposes the completed Stage 1 and Stage 2 browser paths only. Later roadmap controls must not be presented as working features before their implementation is ready.
+The current release is the Public Alpha. It includes the completed Stage 1–3 browser paths plus the shipped portion of Stage 4 procedural sources: Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise. Unshipped later roadmap controls must not be presented as working features before their implementation is ready.
 
-Desktop/standalone packaging is not part of the Development Preview. It remains optional and may be introduced later only if measured browser limitations justify it, while reusing the same project model and rendering core.
+Desktop/standalone packaging is not part of the current browser release. It remains optional and may be introduced later only if measured browser limitations justify it, while reusing the same project model and rendering core.
