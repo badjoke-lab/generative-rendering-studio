@@ -1,6 +1,14 @@
 import type { FieldSample, PointField } from "./index";
 
-export type ProceduralSourceKind = "sphere" | "torus" | "grid" | "spiral";
+export type ProceduralSourceKind =
+  | "sphere"
+  | "torus"
+  | "grid"
+  | "spiral"
+  | "wave"
+  | "ribbon"
+  | "vortex"
+  | "noise";
 
 export interface ProceduralPointFieldOptions {
   readonly kind: ProceduralSourceKind;
@@ -102,6 +110,83 @@ function generateSpiral(count: number, scale: number, seed: number) {
   return samples;
 }
 
+function generateWave(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const columns = Math.max(16, Math.ceil(Math.sqrt(count * 5)));
+  const rows = Math.max(2, Math.ceil(count / columns));
+  const phase = hash01(0, seed) * TAU;
+  for (let row = 0; row < rows && samples.length < count; row += 1) {
+    for (let column = 0; column < columns && samples.length < count; column += 1) {
+      const i = row * columns + column;
+      const tx = columns <= 1 ? 0 : column / (columns - 1);
+      const ty = rows <= 1 ? 0.5 : row / (rows - 1);
+      const x = tx * 2 - 1;
+      const band = (ty - 0.5) * 0.42;
+      const y = Math.sin(x * Math.PI * 2.2 + phase) * 0.34 + band;
+      const z = Math.cos(x * Math.PI * 1.6 + phase) * 0.12 + (hash01(i, seed + 19) - 0.5) * 0.025;
+      samples.push(sample([x * scale, y * scale, z * scale], 0.7 + 0.3 * (1 - Math.abs(band) / 0.21), 4));
+    }
+  }
+  return samples;
+}
+
+function generateRibbon(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const columns = Math.max(16, Math.ceil(Math.sqrt(count * 6)));
+  const rows = Math.max(2, Math.ceil(count / columns));
+  const phase = hash01(1, seed) * TAU;
+  for (let row = 0; row < rows && samples.length < count; row += 1) {
+    for (let column = 0; column < columns && samples.length < count; column += 1) {
+      const i = row * columns + column;
+      const t = columns <= 1 ? 0 : column / (columns - 1);
+      const across = rows <= 1 ? 0 : row / (rows - 1) * 2 - 1;
+      const x = t * 2 - 1;
+      const center = Math.sin(t * TAU * 1.35 + phase) * 0.3;
+      const twist = Math.cos(t * TAU * 2 + phase) * 0.11;
+      const y = center + across * twist;
+      const z = across * Math.sin(t * TAU * 2 + phase) * 0.18 + (hash01(i, seed + 31) - 0.5) * 0.01;
+      samples.push(sample([x * scale, y * scale, z * scale], 0.72 + 0.28 * (1 - Math.abs(across)), 5));
+    }
+  }
+  return samples;
+}
+
+function generateVortex(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const arms = 4;
+  const turns = 4.5;
+  const phase = hash01(2, seed) * TAU;
+  for (let i = 0; i < count; i += 1) {
+    const t = count <= 1 ? 0 : i / (count - 1);
+    const arm = i % arms;
+    const radialNoise = (hash01(i, seed + 43) - 0.5) * 0.035;
+    const radius = Math.min(0.95, 0.05 + Math.pow(t, 0.68) * 0.88 + radialNoise);
+    const angle = t * turns * TAU + (arm / arms) * TAU + phase;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    const z = (0.5 - t) * 0.32;
+    samples.push(sample([x * scale, y * scale, z * scale], 0.5 + 0.5 * (1 - t * 0.55), 6));
+  }
+  return samples;
+}
+
+function generateNoise(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const x = (hash01(i * 3 + 0, seed + 59) * 2 - 1) * 0.94;
+    const y = (hash01(i * 3 + 1, seed + 61) * 2 - 1) * 0.94;
+    const noise = hash01(i * 3 + 2, seed + 67);
+    const radial = Math.sqrt(x * x + y * y);
+    const warp = Math.sin((x + noise * 0.35) * 7.5) * Math.cos((y - noise * 0.2) * 6.5);
+    const warpedX = Math.max(-0.99, Math.min(0.99, x + warp * 0.045));
+    const warpedY = Math.max(-0.99, Math.min(0.99, y + warp * 0.045));
+    const z = (noise - 0.5) * 0.42;
+    const density = Math.max(0.2, Math.min(1, 0.95 - radial * 0.3 + Math.abs(warp) * 0.2));
+    samples.push(sample([warpedX * scale, warpedY * scale, z * scale], density, 7));
+  }
+  return samples;
+}
+
 export function generateProceduralPointField(options: ProceduralPointFieldOptions): PointField {
   const count = clampCount(options.count);
   const scale = clampScale(options.scale);
@@ -120,6 +205,18 @@ export function generateProceduralPointField(options: ProceduralPointFieldOption
       break;
     case "spiral":
       samples = generateSpiral(count, scale, seed);
+      break;
+    case "wave":
+      samples = generateWave(count, scale, seed);
+      break;
+    case "ribbon":
+      samples = generateRibbon(count, scale, seed);
+      break;
+    case "vortex":
+      samples = generateVortex(count, scale, seed);
+      break;
+    case "noise":
+      samples = generateNoise(count, scale, seed);
       break;
   }
 
