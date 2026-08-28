@@ -1,0 +1,69 @@
+name: stage4-organic-ui-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-organic-ui-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage4/organic-presets-ui
+      - name: Connect organic presets to Studio UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          main = 'apps/web/src/main.tsx'
+          replace_once(main, '  type GeneratedProceduralSourceKind,', '  type ProceduralGeneratorKind,', 'main type import')
+          replace_once(main, 'useState<GeneratedProceduralSourceKind>();', 'useState<ProceduralGeneratorKind>();', 'main source-kind state')
+          replace_once(main, 'const proceduralLabel = (kind: GeneratedProceduralSourceKind) => {', 'const proceduralLabel = (kind: ProceduralGeneratorKind) => {', 'procedural label type')
+          replace_once(main, 'const useProceduralSource = (kind: GeneratedProceduralSourceKind, generatedField: PointField) => {', 'const useProceduralSource = (kind: ProceduralGeneratorKind, generatedField: PointField) => {', 'procedural source type')
+
+          old_locale_switch = '''        case "wave": setSourceLabel(t("procedural.wave")); break;\n        case "ribbon": setSourceLabel(t("procedural.ribbon")); break;\n        case "vortex": setSourceLabel(t("procedural.vortex")); break;\n        case "noise": setSourceLabel(t("procedural.noise")); break;'''
+          new_locale_switch = old_locale_switch + '''\n        case "bloom": setSourceLabel(t("procedural.bloom")); break;\n        case "filament": setSourceLabel(t("procedural.filament")); break;\n        case "cluster": setSourceLabel(t("procedural.cluster")); break;'''
+          replace_once(main, old_locale_switch, new_locale_switch, 'locale follow switch')
+
+          old_label_switch = '''      case "wave": return t("procedural.wave");\n      case "ribbon": return t("procedural.ribbon");\n      case "vortex": return t("procedural.vortex");\n      case "noise": return t("procedural.noise");'''
+          new_label_switch = old_label_switch + '''\n      case "bloom": return t("procedural.bloom");\n      case "filament": return t("procedural.filament");\n      case "cluster": return t("procedural.cluster");'''
+          replace_once(main, old_label_switch, new_label_switch, 'procedural label switch')
+
+          old_props = '''            ribbon: t("procedural.ribbon"),\n            vortex: t("procedural.vortex"),\n            noise: t("procedural.noise"),'''
+          new_props = old_props + '''\n            bloom: t("procedural.bloom"),\n            filament: t("procedural.filament"),\n            cluster: t("procedural.cluster"),'''
+          replace_once(main, old_props, new_props, 'panel label props')
+
+          en = 'apps/web/src/i18n/locales/en.ts'
+          en_anchor = '  "procedural.noise": "Noise",\n'
+          replace_once(en, en_anchor, en_anchor + '  "procedural.bloom": "Bloom",\n  "procedural.filament": "Filament",\n  "procedural.cluster": "Cluster",\n', 'EN organic keys')
+
+          ja = 'apps/web/src/i18n/locales/ja.ts'
+          ja_anchor = '  "procedural.noise": "ノイズ",\n'
+          replace_once(ja, ja_anchor, ja_anchor + '  "procedural.bloom": "ブルーム",\n  "procedural.filament": "フィラメント",\n  "procedural.cluster": "クラスター",\n', 'JA organic keys')
+
+          mobile = 'apps/web/src/mobile-ux.css'
+          mobile_anchor = '  .procedural-kind-grid { gap: 4px; margin: 5px 0 6px; }'
+          replace_once(mobile, mobile_anchor, '  .procedural-kind-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin: 5px 0 6px; }', 'mobile organic grid')
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-organic-ui-once.yml
+      - name: Commit organic preset integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts apps/web/src/mobile-ux.css .github/workflows/stage4-organic-ui-once.yml
+          git commit -m "Stage 4: connect organic presets to Studio UI"
+          git push origin HEAD:stage4/organic-presets-ui
