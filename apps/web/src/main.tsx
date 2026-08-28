@@ -17,7 +17,7 @@ import {
   type RasterPixels,
 } from "@grs/core";
 import { OriginalPreview } from "./canvas/OriginalPreview";
-import { ProceduralSourcePanel } from "./components/ProceduralSourcePanel";
+import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
 import { composeCanvasLayers } from "./export/composeCanvasLayers";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
@@ -853,7 +853,21 @@ function App() {
           <button className="source-secondary" disabled={animationExporting} onClick={() => videoInput.current?.click()}>＋ {t("action.addVideo")}</button>
           <button className="source-secondary" disabled={animationExporting} onClick={addText}>＋ {t("source.text")}</button>
         </div>
-        <ProceduralSourcePanel disabled={animationExporting} t={t} onGenerate={useProceduralSource} />
+        <ProceduralSourcePanel
+          disabled={animationExporting}
+          labels={{
+            title: t("procedural.title"),
+            description: t("procedural.description"),
+            create: t("procedural.create"),
+            count: t("procedural.count"),
+            scale: t("procedural.scale"),
+            sphere: t("procedural.sphere"),
+            torus: t("procedural.torus"),
+            grid: t("procedural.grid"),
+            spiral: t("procedural.spiral"),
+          }}
+          onCreate={({ kind, field: generatedField }) => useProceduralSource(kind, generatedField)}
+        />
         <p className="supported-note">{t("source.supportedMedia")}</p>
         {sourceError && <p className="supported-note stage3-note" role="alert">{sourceError}</p>}
 
