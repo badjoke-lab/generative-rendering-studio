@@ -50,6 +50,7 @@ test("webkit second-browser critical: stage4 procedural source is a real Studio 
   await page.getByLabel("Language").selectOption("ja");
   await expect(panel).toContainText("生成素材");
   await expect(page.locator(".asset-card.selected")).toContainText("トーラス");
+  await expect(page.locator(".asset-card.selected")).toContainText("手続き生成素材");
   await page.screenshot({ path: `${evidenceDir}/stage4-procedural-torus-particle-1440x700-ja.png`, fullPage: true });
 });
 
