@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { generateProceduralPointField, type ProceduralSourceKind } from "./procedural";
+import {
+  generateProceduralPointField,
+  type GeneratedProceduralSourceKind,
+  type ProceduralSourceKind,
+} from "./procedural";
 
-const kinds: readonly ProceduralSourceKind[] = [
+const kinds: readonly GeneratedProceduralSourceKind[] = [
   "sphere",
   "torus",
   "grid",
@@ -11,6 +15,8 @@ const kinds: readonly ProceduralSourceKind[] = [
   "vortex",
   "noise",
 ];
+
+const publishedPrimitiveKinds: readonly ProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral"];
 
 describe("generateProceduralPointField", () => {
   it.each(kinds)("generates a bounded deterministic %s field", (kind) => {
@@ -37,6 +43,10 @@ describe("generateProceduralPointField", () => {
     const first = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 10 });
     const second = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 11 });
     expect(second).not.toEqual(first);
+  });
+
+  it("keeps the currently published primitive UI subset explicit", () => {
+    expect(publishedPrimitiveKinds).toEqual(["sphere", "torus", "grid", "spiral"]);
   });
 
   it("keeps generator identity independent from renderer identity", () => {
