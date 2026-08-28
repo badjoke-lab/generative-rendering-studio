@@ -75,7 +75,7 @@ test("stage4 procedural sources export usable PNG and WebP stills", async ({ pag
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export current frame" }).click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe(`bloom-point.${output.extension}`);
+    expect(download.suggestedFilename()).toBe(`Bloom-point.${output.extension}`);
     const outputPath = `${outputDir}/${download.suggestedFilename()}`;
     await download.saveAs(outputPath);
     await inspectDownloadedImage(page, outputPath, output.mimeType);
