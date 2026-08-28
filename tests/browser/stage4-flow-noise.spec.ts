@@ -65,6 +65,9 @@ test("stage4 eight-form selector stays usable on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
+  const firstRunPreviewTop = await page.locator(".preview-frame").evaluate((element) => element.getBoundingClientRect().top);
+  expect(firstRunPreviewTop).toBeLessThan(844);
+
   await createKind(page, "Ribbon");
   const metrics = await page.evaluate(() => ({
     bodyWidth: document.body.scrollWidth,
