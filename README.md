@@ -14,11 +14,11 @@ This repository is under active development. The current working codename is **G
 
 ## Current development focus
 
-The publicly deployed Development Preview already covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, and browser-safe still/short-animation output where supported.
+The publicly deployed **Public Alpha** covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, browser-safe still/short-animation output where supported, and Stage 3 existing-video transformation.
 
-Current development is on **Stage 3 existing-video transformation**. Browser-decodable MP4/WebM can drive Original/Glyph/Point/Particle previews with video transport, deterministic sampling/identity hardening, and an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export preserves that composition when enabled. A synchronized auxiliary video can also be used as a **Texture Video** for source-space color, a **Mask Video** for visibility, or an **Analysis Video** whose frame brightness drives transformed element size. These auxiliary roles follow normalized main-video progress and remain local to the browser/device.
+Browser-decodable MP4/WebM can drive Original/Glyph/Point/Particle previews with video transport and temporal-coherence hardening, with an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export preserves that composition when enabled. A synchronized auxiliary video can also be used as a **Texture Video** for source-space color, a **Mask Video** for visibility, or an **Analysis Video** whose frame brightness drives transformed element size. These auxiliary roles follow normalized main-video progress and remain local to the browser/device.
 
-The remaining Stage 3 work is release hardening with representative real footage and the Public Alpha completion/release gate. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
+Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. The next implementation focus is **Stage 4 procedural sources**. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
 
 The project is browser-first and designed around local processing. Public claims track verified shipped behavior rather than unreleased internal plans.
 
