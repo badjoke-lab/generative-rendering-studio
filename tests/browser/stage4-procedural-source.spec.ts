@@ -19,7 +19,7 @@ async function brightPixelCount(page: import("@playwright/test").Page) {
   });
 }
 
-test("stage4 procedural source is a real Studio source across Glyph Point and Particle", async ({ page }) => {
+test("webkit second-browser critical: stage4 procedural source is a real Studio source across Glyph Point and Particle", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
 
