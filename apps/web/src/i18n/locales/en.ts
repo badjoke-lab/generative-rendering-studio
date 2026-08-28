@@ -114,7 +114,7 @@ export const en = {
   "export.videoLongExportLater": "Stage 3 currently transforms imported video in the live preview. Long transformed-video export remains a later export-hardening path.",
   "status.localProcessing": "Local processing",
   "status.localProcessingDetail": "Rendering and exports stay in this browser/device; imported media is not uploaded by the app.",
-  "status.developmentPreview": "Development Preview",
+  "status.developmentPreview": "Public Alpha",
   "language.label": "Language",
   "language.english": "English",
   "language.japanese": "Japanese",

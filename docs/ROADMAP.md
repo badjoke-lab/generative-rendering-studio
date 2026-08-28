@@ -18,8 +18,8 @@ A desktop/standalone build, if introduced, must reuse the same project model and
 
 The intended public release sequence is capability-based rather than date-based:
 
-- **Development Preview — after Stage 2:** still rendering plus usable source-to-source Morph and short browser-safe time-based output.
-- **Public Alpha — after Stage 3:** existing video becomes a first-class import/transformation source.
+- **Development Preview — after Stage 2:** still rendering plus usable source-to-source Morph and short browser-safe time-based output. Completed.
+- **Public Alpha — after Stage 3:** existing video becomes a first-class import/transformation source. **Current release.**
 - **Public Beta — after Stage 5:** procedural sources plus Layers/Timeline/Keyframes and broader Studio composition make the product useful as a production environment rather than a conversion demo.
 - **v1 Release Candidate — after Stage 6:** optional audio/data modulation completes the major general-purpose creation paths.
 - **v1 Stable — after Stage 7:** practical browser export, resolution/duration/frame-rate handling, audio inclusion where supported, and browser capability handling are hardened.
@@ -96,7 +96,7 @@ Outcome: users can load two visual sources and produce a coherent editable trans
 
 User behavior: add Source A and Source B; enable Morph; scrub progress manually or play it over a chosen duration; select easing; view the transition through compatible Glyph/Point/Particle renderers; export a short animation when the current browser/device supports canvas recording.
 
-Status: completed and merged to main. The Stage 1 + Stage 2 browser build is publicly deployed as the Development Preview, and its release-candidate checks are complete in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`.
+Status: completed and merged to main. The Stage 1 + Stage 2 browser build was released as the Development Preview, and its release-candidate checks are retained in `docs/DEVELOPMENT_PREVIEW_CHECKLIST.md`.
 
 ## Development Preview release lane — closed
 
@@ -109,11 +109,11 @@ Status: completed and merged to main. The Stage 1 + Stage 2 browser build is pub
 - deploy only the build that passed the browser and visual smoke gates;
 - verify the publicly served HTML, JavaScript, and CSS bytes match the exact green candidate.
 
-Outcome: the first public browser build is a tested Stage 1 + Stage 2 Development Preview rather than an unverified repository build.
+Outcome: the first public browser build was a tested Stage 1 + Stage 2 Development Preview rather than an unverified repository build.
 
 User behavior: open the public browser application without installing desktop software; follow the first-run flow to add a supported still source or create text; render as Original/Glyph/Point/Particle; optionally configure and preview A-to-B Morph; switch English/Japanese; export still frames and, where supported, a short Morph animation locally.
 
-Status: complete. The Development Preview is publicly deployed, the first-run mobile usability correction is included, and the deployed static files are verified against the exact green main candidate.
+Status: complete and superseded by the Stage 3 Public Alpha release. The historical checklist remains available for regression and release-discipline reference.
 
 ## Stage 3 — Existing-video transformation
 
@@ -127,7 +127,7 @@ Outcome: existing footage becomes a first-class source that can remain original 
 
 User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
 
-Status: in progress, with the Stage 3 feature baseline now implemented on main. Browser-decodable MP4/WebM can be loaded as the main source; decoded frames feed the existing Original/Glyph/Point/Particle paths; play/pause/start/end/seek controls follow the video clock; and the currently displayed frame can be saved as PNG/WebP. Temporal-coherence hardening includes deterministic source-space sampling and stable Symbols glyph identity so unchanged source positions do not get reassigned merely because adjacent samples enter or leave the active set. Browser evidence verifies a visible moving object across Original, Point and Glyph/Symbols output. Original and transformed video can be shown in the same video-only composition with adjustable original opacity, and current-frame PNG/WebP export preserves that composition. Auxiliary browser-decodable video can also be synchronized by normalized main-video progress and used as a Texture Video for source-space color, a Mask Video for visibility with strength/inversion controls, or an Analysis Video whose deterministic frame brightness drives transformed element size with adjustable strength. These auxiliary roles preserve the main point-field identity and remain local to the browser/device. Existing Stage 1 + Stage 2 Chromium/WebKit regression gates remain green. Remaining Stage 3 work is representative real-footage coherence/reliability hardening where evidence exposes gaps, followed by the Public Alpha completion/release gate; Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later work.
+Status: completed on main and released as the Public Alpha. Browser-decodable MP4/WebM can be loaded as the main source; decoded frames feed Original/Glyph/Point/Particle; play/pause/start/end/seek controls follow the video clock; and the current frame can be saved as PNG/WebP. Temporal-coherence hardening uses deterministic source-space sampling and stable glyph identity. Original and transformed video can be composited with adjustable original opacity, and current-frame export preserves that composition. Synchronized auxiliary browser-decodable video can serve as Texture Video, Mask Video, or Analysis Video while preserving the main point-field identity and remaining local to the browser/device. Stage 3 release gates include Chromium and focused WebKit coverage plus representative real-footage validation across Original/Glyph/Point/Particle at multiple seek positions and repeated-seek stability. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later work.
 
 ## Stage 4 — Procedural sources
 
@@ -141,7 +141,7 @@ Outcome: users can create renderable source material inside the tool rather than
 
 User behavior: choose or configure a generated primitive/flow/noise/organic source, then treat it like imported media by applying compatible renderers and later motion/composition controls. Individual recognizable forms are presets, not the definition of the engine.
 
-Status: not started.
+Status: next implementation stage; not yet started on main.
 
 ## Stage 5 — Studio workflow
 
