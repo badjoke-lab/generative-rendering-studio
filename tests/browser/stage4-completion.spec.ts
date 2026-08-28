@@ -61,6 +61,7 @@ test("stage4 procedural sources export usable PNG and WebP stills", async ({ pag
   await panel.getByRole("button", { name: "Bloom", exact: true }).click();
   await panel.getByRole("button", { name: /Create procedural source/ }).click();
   await expect(page.locator(".asset-card.selected")).toContainText("Bloom");
+  await expect(page.getByRole("button", { name: "Original", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Point", exact: true })).toHaveClass(/active/);
 
   const format = page.locator("section.inspector-section").filter({
