@@ -2,13 +2,18 @@ import type { FieldSample, PointField } from "./index";
 
 export type PrimitiveProceduralSourceKind = "sphere" | "torus" | "grid" | "spiral";
 export type FlowNoiseProceduralSourceKind = "wave" | "ribbon" | "vortex" | "noise";
-export type GeneratedProceduralSourceKind = PrimitiveProceduralSourceKind | FlowNoiseProceduralSourceKind;
+export type OrganicProceduralPresetKind = "bloom" | "filament" | "cluster";
 
-// Compatibility alias for the currently published primitive-source UI surface.
+// User-facing procedural kinds currently exposed by the browser UI.
+export type GeneratedProceduralSourceKind = PrimitiveProceduralSourceKind | FlowNoiseProceduralSourceKind;
+// Full generator surface. Organic presets can land in core before a reviewed UI slice exposes them.
+export type ProceduralGeneratorKind = GeneratedProceduralSourceKind | OrganicProceduralPresetKind;
+
+// Compatibility alias for the historical primitive-source surface.
 export type ProceduralSourceKind = PrimitiveProceduralSourceKind;
 
 export interface ProceduralPointFieldOptions {
-  readonly kind: GeneratedProceduralSourceKind;
+  readonly kind: ProceduralGeneratorKind;
   readonly count?: number;
   readonly scale?: number;
   readonly seed?: number;
@@ -184,6 +189,64 @@ function generateNoise(count: number, scale: number, seed: number) {
   return samples;
 }
 
+function generateBloom(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const petals = 7;
+  const phase = hash01(3, seed) * TAU;
+  for (let i = 0; i < count; i += 1) {
+    const t = count <= 1 ? 0 : i / (count - 1);
+    const angle = t * TAU * 9 + phase + (hash01(i, seed + 71) - 0.5) * 0.035;
+    const petal = 0.56 + 0.28 * Math.cos(petals * angle);
+    const layer = 0.35 + 0.65 * Math.sqrt(hash01(i, seed + 73));
+    const radius = Math.min(0.94, petal * layer);
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    const z = Math.sin(petals * angle * 0.5) * (1 - layer) * 0.22;
+    samples.push(sample([x * scale, y * scale, z * scale], 0.55 + 0.45 * layer, 8));
+  }
+  return samples;
+}
+
+function generateFilament(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const strands = 9;
+  const phase = hash01(4, seed) * TAU;
+  for (let i = 0; i < count; i += 1) {
+    const strand = i % strands;
+    const step = Math.floor(i / strands);
+    const steps = Math.max(1, Math.ceil(count / strands) - 1);
+    const t = Math.min(1, step / steps);
+    const offset = (strand / Math.max(1, strands - 1) - 0.5) * 0.7;
+    const sway = Math.sin(t * TAU * (1.15 + strand * 0.035) + phase + strand * 0.44) * 0.18;
+    const x = (t * 2 - 1) * 0.9;
+    const y = offset + sway + (hash01(i, seed + 79) - 0.5) * 0.025;
+    const z = Math.cos(t * TAU * 1.7 + strand * 0.65 + phase) * 0.16;
+    samples.push(sample([x * scale, y * scale, z * scale], 0.62 + 0.38 * (1 - Math.abs(offset)), 9));
+  }
+  return samples;
+}
+
+function generateCluster(count: number, scale: number, seed: number) {
+  const samples: FieldSample[] = [];
+  const centers = Array.from({ length: 6 }, (_, index) => {
+    const angle = hash01(index * 5 + 1, seed + 83) * TAU;
+    const radius = 0.18 + hash01(index * 5 + 2, seed + 89) * 0.52;
+    return [Math.cos(angle) * radius, Math.sin(angle) * radius] as const;
+  });
+  for (let i = 0; i < count; i += 1) {
+    const centerIndex = Math.floor(hash01(i, seed + 97) * centers.length) % centers.length;
+    const center = centers[centerIndex] ?? [0, 0];
+    const angle = hash01(i * 3 + 1, seed + 101) * TAU;
+    const radial = Math.pow(hash01(i * 3 + 2, seed + 103), 1.7) * 0.24;
+    const x = Math.max(-0.98, Math.min(0.98, center[0] + Math.cos(angle) * radial));
+    const y = Math.max(-0.98, Math.min(0.98, center[1] + Math.sin(angle) * radial));
+    const z = (hash01(i * 3 + 3, seed + 107) - 0.5) * 0.26;
+    const density = 0.58 + 0.42 * (1 - Math.min(1, radial / 0.24));
+    samples.push(sample([x * scale, y * scale, z * scale], density, 10));
+  }
+  return samples;
+}
+
 export function generateProceduralPointField(options: ProceduralPointFieldOptions): PointField {
   const count = clampCount(options.count);
   const scale = clampScale(options.scale);
@@ -214,6 +277,15 @@ export function generateProceduralPointField(options: ProceduralPointFieldOption
       break;
     case "noise":
       samples = generateNoise(count, scale, seed);
+      break;
+    case "bloom":
+      samples = generateBloom(count, scale, seed);
+      break;
+    case "filament":
+      samples = generateFilament(count, scale, seed);
+      break;
+    case "cluster":
+      samples = generateCluster(count, scale, seed);
       break;
   }
 
