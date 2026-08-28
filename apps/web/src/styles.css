@@ -138,6 +138,13 @@ input[type="range"] { accent-color: var(--purple); width: 100%; }
 
 .preview-error { display: grid; place-items: center; height: 100%; padding: 24px; color: #f1a5a5; }
 
+.procedural-source-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.procedural-kind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0 12px; }
+.procedural-kind-grid .source-secondary { min-width: 0; }
+.procedural-kind-grid .source-secondary.selected { border-color: #7548ef; color: #e4dcff; background: rgba(122,66,255,.16); }
+.procedural-control-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 48px; gap: 8px; align-items: center; margin: 10px 0; color: #cbd0da; font-size: 11px; }
+.procedural-control-row output { text-align: right; color: var(--muted); font-size: 10px; }
+
 @media (max-width: 1100px) {
   .studio-shell { grid-template-columns: 220px minmax(0,1fr); grid-template-rows: 54px auto; }
   .studio-topbar { grid-template-columns: 220px 1fr auto; height: 54px; }
@@ -156,4 +163,5 @@ input[type="range"] { accent-color: var(--purple); width: 100%; }
   .inspector-panel { display: block; }
   .transport-bar { grid-template-columns: repeat(4, 28px) minmax(0, 1fr) 28px; }
   .transport-time { display: none; }
+  .procedural-kind-grid { grid-template-columns: repeat(4, minmax(76px, 1fr)); overflow-x: auto; }
 }
