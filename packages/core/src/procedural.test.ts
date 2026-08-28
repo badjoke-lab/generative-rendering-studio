@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { generateProceduralPointField, type ProceduralSourceKind } from "./procedural";
 
-const kinds: readonly ProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral"];
+const kinds: readonly ProceduralSourceKind[] = [
+  "sphere",
+  "torus",
+  "grid",
+  "spiral",
+  "wave",
+  "ribbon",
+  "vortex",
+  "noise",
+];
 
 describe("generateProceduralPointField", () => {
   it.each(kinds)("generates a bounded deterministic %s field", (kind) => {
@@ -24,8 +33,14 @@ describe("generateProceduralPointField", () => {
     }
   });
 
+  it.each(["wave", "ribbon", "vortex", "noise"] as const)("changes %s output when the deterministic seed changes", (kind) => {
+    const first = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 10 });
+    const second = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 11 });
+    expect(second).not.toEqual(first);
+  });
+
   it("keeps generator identity independent from renderer identity", () => {
-    const field = generateProceduralPointField({ kind: "spiral", count: 64, seed: 7 });
+    const field = generateProceduralPointField({ kind: "vortex", count: 64, seed: 7 });
     expect(field.kind).toBe("point-field");
     expect("renderer" in field).toBe(false);
   });
