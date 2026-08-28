@@ -1,0 +1,38 @@
+name: stage4-fix-locale-detail-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-fix-locale-detail-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage4/procedural-source-ui
+      - name: Localize procedural source detail with locale changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/src/main.tsx')
+          text = path.read_text()
+          old = '''    if (sourceKind === "procedural" && proceduralSourceKind) {\n      switch (proceduralSourceKind) {\n        case "sphere": setSourceLabel(t("procedural.sphere")); break;\n        case "torus": setSourceLabel(t("procedural.torus")); break;\n        case "grid": setSourceLabel(t("procedural.grid")); break;\n        case "spiral": setSourceLabel(t("procedural.spiral")); break;\n      }\n    }'''
+          new = '''    if (sourceKind === "procedural" && proceduralSourceKind) {\n      setSourceDetail(t("procedural.detail"));\n      switch (proceduralSourceKind) {\n        case "sphere": setSourceLabel(t("procedural.sphere")); break;\n        case "torus": setSourceLabel(t("procedural.torus")); break;\n        case "grid": setSourceLabel(t("procedural.grid")); break;\n        case "spiral": setSourceLabel(t("procedural.spiral")); break;\n      }\n    }'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one locale block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-fix-locale-detail-once.yml
+      - name: Commit locale fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx .github/workflows/stage4-fix-locale-detail-once.yml
+          git commit -m "Localize procedural source detail"
+          git push origin HEAD:stage4/procedural-source-ui
