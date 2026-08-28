@@ -1,0 +1,78 @@
+name: stage4-public-status-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-public-status-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/stage4-public-status
+      - name: Sync public documentation to shipped Stage 4 state
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          once(
+              'README.md',
+              'Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. The next implementation focus is **Stage 4 procedural sources**. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.',
+              'Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. **Stage 4 procedural sources are now in progress on main:** Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise can be generated as renderer-neutral Point Fields and rendered through compatible Glyph/Point/Particle looks. Organic/example presets remain Stage 4 work. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.',
+              'README Stage 4 status',
+          )
+
+          once(
+              'docs/ROADMAP.md',
+              'Status: next implementation stage; not yet started on main.',
+              'Status: in progress on main. Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise are shipped as renderer-neutral generated Point Fields with compatible Glyph/Point/Particle rendering, English/Japanese UI coverage, and browser/mobile release checks. Organic/example presets remain Stage 4 work; Stage 5 composition features are not part of this stage.',
+              'ROADMAP Stage 4 status',
+          )
+
+          once(
+              'docs/DEPLOYMENT.md',
+              'The Development Preview does not require a server-side rendering service or rendering worker. The rendering and current export paths run in the user\'s browser/device.',
+              'The current Public Alpha does not require a server-side rendering service or rendering worker. The rendering and current export paths run in the user\'s browser/device.',
+              'deployment hosting scope',
+          )
+          once(
+              'docs/DEPLOYMENT.md',
+              '## GitHub Pages Development Preview\n\nThe repository contains `.github/workflows/deploy-development-preview.yml` for the first public Development Preview. It is deliberately downstream of repository CI rather than a second independent build path.',
+              '## GitHub Pages deployment\n\nThe repository retains the historical workflow filename `.github/workflows/deploy-development-preview.yml`. It now deploys the current browser release and remains deliberately downstream of repository CI rather than becoming a second independent build path.',
+              'deployment heading',
+          )
+          once(
+              'docs/DEPLOYMENT.md',
+              'For the Development Preview, prefer deployment of the already tested CI artifact where the provider permits direct static artifact deployment. A provider-side rebuild must be treated as a distinct candidate if its resolved dependencies or bytes differ.',
+              'For public browser releases, prefer deployment of the already tested CI artifact where the provider permits direct static artifact deployment. A provider-side rebuild must be treated as a distinct candidate if its resolved dependencies or bytes differ.',
+              'deployment provider wording',
+          )
+          once(
+              'docs/DEPLOYMENT.md',
+              '## Development Preview scope\n\nThe first public Development Preview exposes the completed Stage 1 and Stage 2 browser paths only. Later roadmap controls must not be presented as working features before their implementation is ready.\n\nDesktop/standalone packaging is not part of the Development Preview. It remains optional and may be introduced later only if measured browser limitations justify it, while reusing the same project model and rendering core.',
+              '## Current public scope\n\nThe current release is the Public Alpha. It includes the completed Stage 1–3 browser paths plus the shipped portion of Stage 4 procedural sources: Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise. Unshipped later roadmap controls must not be presented as working features before their implementation is ready.\n\nDesktop/standalone packaging is not part of the current browser release. It remains optional and may be introduced later only if measured browser limitations justify it, while reusing the same project model and rendering core.',
+              'deployment current scope',
+          )
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-public-status-once.yml
+      - name: Commit public status sync
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/ROADMAP.md docs/DEPLOYMENT.md .github/workflows/stage4-public-status-once.yml
+          git commit -m "Docs: mark Stage 4 procedural work in progress"
+          git push origin HEAD:docs/stage4-public-status
