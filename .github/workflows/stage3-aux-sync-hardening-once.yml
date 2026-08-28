@@ -1,0 +1,41 @@
+name: stage3-aux-sync-hardening-once
+on:
+  push:
+    branches: [stage3/aux-video-test-sync-hardening]
+permissions:
+  contents: write
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage3/aux-video-test-sync-hardening
+      - name: Replace fixed waits with behavior polling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/browser/stage3-video.spec.ts')
+          s = p.read_text()
+          old_mask = '''  await page.waitForTimeout(150);\n  const syncedVisible = await brightCentroid(page, 80);\n  expect(syncedVisible.count).toBeGreaterThan(30);'''
+          new_mask = '''  await expect.poll(async () => (await brightCentroid(page, 80)).count).toBeGreaterThan(30);\n  const syncedVisible = await brightCentroid(page, 80);\n  expect(syncedVisible.count).toBeGreaterThan(30);'''
+          old_bright = '''  await page.waitForTimeout(150);\n  const analysisBright = await brightCentroid(page, 80);\n  expect(analysisBright.count).toBeGreaterThan(50);'''
+          new_bright = '''  await expect.poll(async () => (await brightCentroid(page, 80)).count).toBeGreaterThan(50);\n  const analysisBright = await brightCentroid(page, 80);\n  expect(analysisBright.count).toBeGreaterThan(50);'''
+          old_dark = '''  await page.waitForTimeout(150);\n  const analysisDark = await brightCentroid(page, 80);\n  expect(analysisDark.count).toBeGreaterThan(5);\n  expect(analysisBright.count).toBeGreaterThan(analysisDark.count * 2);'''
+          new_dark = '''  await expect.poll(async () => {\n    const current = await brightCentroid(page, 80);\n    return current.count > 5 && analysisBright.count > current.count * 2;\n  }).toBe(true);\n  const analysisDark = await brightCentroid(page, 80);\n  expect(analysisDark.count).toBeGreaterThan(5);\n  expect(analysisBright.count).toBeGreaterThan(analysisDark.count * 2);'''
+          for old, new, label in [(old_mask,new_mask,'mask'),(old_bright,new_bright,'bright'),(old_dark,new_dark,'dark')]:
+              if old not in s:
+                  raise SystemExit(f'missing expected {label} block')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage3-aux-sync-hardening-once.yml
+      - name: Commit synchronization hardening
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/browser/stage3-video.spec.ts .github/workflows/stage3-aux-sync-hardening-once.yml
+          git commit -m "Test: poll auxiliary video render synchronization"
+          git push
