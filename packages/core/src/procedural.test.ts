@@ -2,10 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   generateProceduralPointField,
   type GeneratedProceduralSourceKind,
+  type OrganicProceduralPresetKind,
+  type ProceduralGeneratorKind,
   type ProceduralSourceKind,
 } from "./procedural";
 
-const kinds: readonly GeneratedProceduralSourceKind[] = [
+const kinds: readonly ProceduralGeneratorKind[] = [
+  "sphere",
+  "torus",
+  "grid",
+  "spiral",
+  "wave",
+  "ribbon",
+  "vortex",
+  "noise",
+  "bloom",
+  "filament",
+  "cluster",
+];
+
+const publishedKinds: readonly GeneratedProceduralSourceKind[] = [
   "sphere",
   "torus",
   "grid",
@@ -15,8 +31,8 @@ const kinds: readonly GeneratedProceduralSourceKind[] = [
   "vortex",
   "noise",
 ];
-
 const publishedPrimitiveKinds: readonly ProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral"];
+const organicKinds: readonly OrganicProceduralPresetKind[] = ["bloom", "filament", "cluster"];
 
 describe("generateProceduralPointField", () => {
   it.each(kinds)("generates a bounded deterministic %s field", (kind) => {
@@ -39,14 +55,30 @@ describe("generateProceduralPointField", () => {
     }
   });
 
-  it.each(["wave", "ribbon", "vortex", "noise"] as const)("changes %s output when the deterministic seed changes", (kind) => {
-    const first = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 10 });
-    const second = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 11 });
-    expect(second).not.toEqual(first);
+  it.each(["wave", "ribbon", "vortex", "noise", "bloom", "filament", "cluster"] as const)(
+    "changes %s output when the deterministic seed changes",
+    (kind) => {
+      const first = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 10 });
+      const second = generateProceduralPointField({ kind, count: 128, scale: 0.8, seed: 11 });
+      expect(second).not.toEqual(first);
+    },
+  );
+
+  it("keeps the currently published browser UI subset explicit", () => {
+    expect(publishedKinds).toEqual(["sphere", "torus", "grid", "spiral", "wave", "ribbon", "vortex", "noise"]);
   });
 
-  it("keeps the currently published primitive UI subset explicit", () => {
+  it("keeps the historical primitive subset explicit", () => {
     expect(publishedPrimitiveKinds).toEqual(["sphere", "torus", "grid", "spiral"]);
+  });
+
+  it("keeps organic forms as presets on the shared generator surface", () => {
+    expect(organicKinds).toEqual(["bloom", "filament", "cluster"]);
+    for (const kind of organicKinds) {
+      const field = generateProceduralPointField({ kind, count: 96, seed: 5 });
+      expect(field.kind).toBe("point-field");
+      expect("renderer" in field).toBe(false);
+    }
   });
 
   it("keeps generator identity independent from renderer identity", () => {
