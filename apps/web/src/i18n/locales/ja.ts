@@ -116,7 +116,7 @@ export const ja: Record<TranslationKey, string> = {
   "export.videoLongExportLater": "Stage 3では読み込んだ動画をプレビュー上で変換します。変換後の長時間動画書き出しは、後の書き出し強化で対応します。",
   "status.localProcessing": "端末内で処理",
   "status.localProcessingDetail": "描画と保存はこのブラウザ / 端末内で行います。アプリが読み込んだ素材をサーバーへ送信することはありません。",
-  "status.developmentPreview": "Development Preview",
+  "status.developmentPreview": "Public Alpha",
   "language.label": "言語",
   "language.english": "English",
   "language.japanese": "日本語",
