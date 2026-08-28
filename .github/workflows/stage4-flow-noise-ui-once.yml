@@ -1,0 +1,81 @@
+name: stage4-flow-noise-ui-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-flow-noise-ui-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage4/flow-noise-ui
+      - name: Extend procedural source UI to flow and noise forms
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          panel = Path('apps/web/src/procedural/ProceduralSourcePanel.tsx')
+          text = panel.read_text()
+          text = text.replace('type ProceduralSourceKind,', 'type GeneratedProceduralSourceKind,')
+          text = text.replace('readonly spiral: string;\n}', 'readonly spiral: string;\n  readonly wave: string;\n  readonly ribbon: string;\n  readonly vortex: string;\n  readonly noise: string;\n}')
+          text = text.replace('readonly kind: ProceduralSourceKind;', 'readonly kind: GeneratedProceduralSourceKind;')
+          text = text.replace('const kinds: readonly ProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral"];', 'const kinds: readonly GeneratedProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral", "wave", "ribbon", "vortex", "noise"];')
+          text = text.replace('useState<ProceduralSourceKind>("sphere")', 'useState<GeneratedProceduralSourceKind>("sphere")')
+          old_labels = '''  const kindLabels = useMemo<Record<ProceduralSourceKind, string>>(() => ({\n    sphere: labels.sphere,\n    torus: labels.torus,\n    grid: labels.grid,\n    spiral: labels.spiral,\n  }), [labels.grid, labels.spiral, labels.sphere, labels.torus]);'''
+          new_labels = '''  const kindLabels = useMemo<Record<GeneratedProceduralSourceKind, string>>(() => ({\n    sphere: labels.sphere,\n    torus: labels.torus,\n    grid: labels.grid,\n    spiral: labels.spiral,\n    wave: labels.wave,\n    ribbon: labels.ribbon,\n    vortex: labels.vortex,\n    noise: labels.noise,\n  }), [labels.grid, labels.noise, labels.ribbon, labels.spiral, labels.sphere, labels.torus, labels.vortex, labels.wave]);'''
+          if old_labels not in text:
+              raise SystemExit('panel label map anchor not found')
+          panel.write_text(text.replace(old_labels, new_labels, 1))
+
+          main = Path('apps/web/src/main.tsx')
+          text = main.read_text()
+          if text.count('ProceduralSourceKind') != 4:
+              raise SystemExit(f'unexpected ProceduralSourceKind refs: {text.count("ProceduralSourceKind")}')
+          text = text.replace('ProceduralSourceKind', 'GeneratedProceduralSourceKind')
+          old_switch = '''        case "sphere": setSourceLabel(t("procedural.sphere")); break;\n        case "torus": setSourceLabel(t("procedural.torus")); break;\n        case "grid": setSourceLabel(t("procedural.grid")); break;\n        case "spiral": setSourceLabel(t("procedural.spiral")); break;'''
+          new_switch = old_switch + '''\n        case "wave": setSourceLabel(t("procedural.wave")); break;\n        case "ribbon": setSourceLabel(t("procedural.ribbon")); break;\n        case "vortex": setSourceLabel(t("procedural.vortex")); break;\n        case "noise": setSourceLabel(t("procedural.noise")); break;'''
+          if old_switch not in text:
+              raise SystemExit('locale switch anchor not found')
+          text = text.replace(old_switch, new_switch, 1)
+          old_label_switch = '''      case "sphere": return t("procedural.sphere");\n      case "torus": return t("procedural.torus");\n      case "grid": return t("procedural.grid");\n      case "spiral": return t("procedural.spiral");'''
+          new_label_switch = old_label_switch + '''\n      case "wave": return t("procedural.wave");\n      case "ribbon": return t("procedural.ribbon");\n      case "vortex": return t("procedural.vortex");\n      case "noise": return t("procedural.noise");'''
+          if old_label_switch not in text:
+              raise SystemExit('proceduralLabel anchor not found')
+          text = text.replace(old_label_switch, new_label_switch, 1)
+          old_props = '''            grid: t("procedural.grid"),\n            spiral: t("procedural.spiral"),'''
+          new_props = old_props + '''\n            wave: t("procedural.wave"),\n            ribbon: t("procedural.ribbon"),\n            vortex: t("procedural.vortex"),\n            noise: t("procedural.noise"),'''
+          if old_props not in text:
+              raise SystemExit('panel props anchor not found')
+          main.write_text(text.replace(old_props, new_props, 1))
+
+          en = Path('apps/web/src/i18n/locales/en.ts')
+          text = en.read_text()
+          anchor = '  "procedural.spiral": "Spiral",\n'
+          if text.count(anchor) != 1:
+              raise SystemExit('EN anchor mismatch')
+          text = text.replace(anchor, anchor + '  "procedural.wave": "Wave",\n  "procedural.ribbon": "Ribbon",\n  "procedural.vortex": "Vortex",\n  "procedural.noise": "Noise",\n', 1)
+          en.write_text(text)
+
+          ja = Path('apps/web/src/i18n/locales/ja.ts')
+          text = ja.read_text()
+          anchor = '  "procedural.spiral": "スパイラル",\n'
+          if text.count(anchor) != 1:
+              raise SystemExit('JA anchor mismatch')
+          text = text.replace(anchor, anchor + '  "procedural.wave": "ウェーブ",\n  "procedural.ribbon": "リボン",\n  "procedural.vortex": "渦",\n  "procedural.noise": "ノイズ",\n', 1)
+          ja.write_text(text)
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-flow-noise-ui-once.yml
+      - name: Commit UI integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx apps/web/src/procedural/ProceduralSourcePanel.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts .github/workflows/stage4-flow-noise-ui-once.yml
+          git commit -m "Stage 4: expose flow and noise procedural sources"
+          git push origin HEAD:stage4/flow-noise-ui
