@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import {
   generateProceduralPointField,
   type PointField,
-  type GeneratedProceduralSourceKind,
+  type ProceduralGeneratorKind,
 } from "@grs/core";
 
 export interface ProceduralSourcePanelLabels {
@@ -19,10 +19,13 @@ export interface ProceduralSourcePanelLabels {
   readonly ribbon: string;
   readonly vortex: string;
   readonly noise: string;
+  readonly bloom: string;
+  readonly filament: string;
+  readonly cluster: string;
 }
 
 export interface ProceduralSourceSelection {
-  readonly kind: GeneratedProceduralSourceKind;
+  readonly kind: ProceduralGeneratorKind;
   readonly count: number;
   readonly scale: number;
   readonly field: PointField;
@@ -35,14 +38,26 @@ interface ProceduralSourcePanelProps {
   readonly onCreate: (selection: ProceduralSourceSelection) => void;
 }
 
-const kinds: readonly GeneratedProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral", "wave", "ribbon", "vortex", "noise"];
+const kinds: readonly ProceduralGeneratorKind[] = [
+  "sphere",
+  "torus",
+  "grid",
+  "spiral",
+  "wave",
+  "ribbon",
+  "vortex",
+  "noise",
+  "bloom",
+  "filament",
+  "cluster",
+];
 
 export function ProceduralSourcePanel({ labels, disabled = false, seed = 1, onCreate }: ProceduralSourcePanelProps) {
-  const [kind, setKind] = useState<GeneratedProceduralSourceKind>("sphere");
+  const [kind, setKind] = useState<ProceduralGeneratorKind>("sphere");
   const [count, setCount] = useState(6000);
   const [scale, setScale] = useState(0.9);
 
-  const kindLabels = useMemo<Record<GeneratedProceduralSourceKind, string>>(() => ({
+  const kindLabels = useMemo<Record<ProceduralGeneratorKind, string>>(() => ({
     sphere: labels.sphere,
     torus: labels.torus,
     grid: labels.grid,
@@ -51,7 +66,22 @@ export function ProceduralSourcePanel({ labels, disabled = false, seed = 1, onCr
     ribbon: labels.ribbon,
     vortex: labels.vortex,
     noise: labels.noise,
-  }), [labels.grid, labels.noise, labels.ribbon, labels.spiral, labels.sphere, labels.torus, labels.vortex, labels.wave]);
+    bloom: labels.bloom,
+    filament: labels.filament,
+    cluster: labels.cluster,
+  }), [
+    labels.bloom,
+    labels.cluster,
+    labels.filament,
+    labels.grid,
+    labels.noise,
+    labels.ribbon,
+    labels.spiral,
+    labels.sphere,
+    labels.torus,
+    labels.vortex,
+    labels.wave,
+  ]);
 
   const create = () => {
     const field = generateProceduralPointField({ kind, count, scale, seed });
