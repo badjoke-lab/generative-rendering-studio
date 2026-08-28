@@ -1,0 +1,87 @@
+name: stage4-integrate-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-integrate-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage4/procedural-source-ui
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Integrate procedural source with Studio state
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/src/main.tsx')
+          text = path.read_text()
+
+          def replace_once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one match, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '  type MorphEasing,\n  type PointField,\n  type RasterPixels,\n} from "@grs/core";',
+              '  type MorphEasing,\n  type PointField,\n  type ProceduralSourceKind,\n  type RasterPixels,\n} from "@grs/core";'
+          )
+          replace_once(
+              'import { OriginalPreview } from "./canvas/OriginalPreview";',
+              'import { OriginalPreview } from "./canvas/OriginalPreview";\nimport { ProceduralSourcePanel } from "./components/ProceduralSourcePanel";'
+          )
+          replace_once(
+              'type SourceKind = "still" | "text" | "video";',
+              'type SourceKind = "still" | "text" | "video" | "procedural";'
+          )
+          replace_once(
+              '  useEffect(() => {\n    if (!raster) setSourceDetail(t("source.fallbackDetail"));\n  }, [locale, raster, t]);',
+              '  useEffect(() => {\n    if (!raster && sourceKind !== "procedural") setSourceDetail(t("source.fallbackDetail"));\n  }, [locale, raster, sourceKind, t]);'
+          )
+          replace_once(
+              '  }, [rendererMode, raster]);',
+              '  }, [field, rendererMode, raster, sourceKind]);'
+          )
+          replace_once(
+              '  const hasSource = Boolean(raster);\n  const isVideoSource = sourceKind === "video";',
+              '  const isProceduralSource = sourceKind === "procedural";\n  const hasSource = Boolean(raster || (isProceduralSource && field));\n  const isVideoSource = sourceKind === "video";'
+          )
+          replace_once(
+              '  const seekVideo = (progress: number) => {',
+              '''  const proceduralLabel = (kind: ProceduralSourceKind) => {\n    switch (kind) {\n      case "sphere": return t("procedural.sphere");\n      case "torus": return t("procedural.torus");\n      case "grid": return t("procedural.grid");\n      case "spiral": return t("procedural.spiral");\n    }\n  };\n\n  const useProceduralSource = (kind: ProceduralSourceKind, generatedField: PointField) => {\n    if (animationExporting) return;\n    clearVideoSource();\n    setSourceKind("procedural");\n    setRaster(undefined);\n    setField(generatedField);\n    setMorphRaster(undefined);\n    setMorphField(undefined);\n    setMorphLabel("");\n    setMorphEnabled(false);\n    setMorphPlaying(false);\n    setMorphProgress(0);\n    setSourceLabel(proceduralLabel(kind));\n    setSourceDetail(t("procedural.generatedDetail"));\n    setSourceError(null);\n    setAnimationExportSucceeded(false);\n    if (rendererMode === "original") setRendererMode("point");\n  };\n\n  const seekVideo = (progress: number) => {'''
+          )
+          replace_once(
+              '    if (animationExporting || !raster) return;',
+              '    if (animationExporting || !hasSource) return;'
+          )
+          replace_once(
+              '        </div>\n        <p className="supported-note">{t("source.supportedMedia")}</p>',
+              '''        </div>\n        <ProceduralSourcePanel disabled={animationExporting} t={t} onGenerate={useProceduralSource} />\n        <p className="supported-note">{t("source.supportedMedia")}</p>'''
+          )
+          replace_once(
+              'disabled={(morphEnabled && mode === "original") || animationExporting}',
+              'disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting}'
+          )
+
+          path.write_text(text)
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-integrate-once.yml
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx .github/workflows/stage4-integrate-once.yml
+          git commit -m "Connect procedural sources to Studio state"
+          git push origin HEAD:stage4/procedural-source-ui
