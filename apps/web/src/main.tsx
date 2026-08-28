@@ -698,7 +698,7 @@ function App() {
     setMorphPlaying(false);
     setMorphProgress(0);
     setSourceLabel(proceduralLabel(kind));
-    setSourceDetail(t("procedural.generatedDetail"));
+    setSourceDetail(t("procedural.detail"));
     setSourceError(null);
     setAnimationExportSucceeded(false);
     if (rendererMode === "original") setRendererMode("point");
