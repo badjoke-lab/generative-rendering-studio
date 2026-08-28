@@ -163,6 +163,7 @@ function App() {
   const [field, setField] = useState<PointField>();
   const [morphField, setMorphField] = useState<PointField>();
   const [sourceKind, setSourceKind] = useState<SourceKind>("still");
+  const [proceduralSourceKind, setProceduralSourceKind] = useState<ProceduralSourceKind>();
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoTime, setVideoTime] = useState(0);
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -373,7 +374,15 @@ function App() {
 
   useEffect(() => {
     if (!raster && sourceKind !== "procedural") setSourceDetail(t("source.fallbackDetail"));
-  }, [locale, raster, sourceKind, t]);
+    if (sourceKind === "procedural" && proceduralSourceKind) {
+      switch (proceduralSourceKind) {
+        case "sphere": setSourceLabel(t("procedural.sphere")); break;
+        case "torus": setSourceLabel(t("procedural.torus")); break;
+        case "grid": setSourceLabel(t("procedural.grid")); break;
+        case "spiral": setSourceLabel(t("procedural.spiral")); break;
+      }
+    }
+  }, [locale, proceduralSourceKind, raster, sourceKind, t]);
 
   useEffect(() => {
     if (!raster) return;
@@ -435,19 +444,28 @@ function App() {
   const isProceduralSource = sourceKind === "procedural";
   const hasSource = Boolean(raster || (isProceduralSource && field));
   const isVideoSource = sourceKind === "video";
+  const densityAdjustedField = useMemo(() => {
+    if (!field || !isProceduralSource) return field;
+    const visibleCount = Math.max(16, Math.min(field.samples.length, Math.round(field.samples.length * density / 100)));
+    if (visibleCount >= field.samples.length) return field;
+    const samples = Array.from({ length: visibleCount }, (_, index) =>
+      field.samples[Math.min(field.samples.length - 1, Math.floor(index * field.samples.length / visibleCount))]!,
+    );
+    return { ...field, samples };
+  }, [density, field, isProceduralSource]);
   const texturedField = useMemo(() => {
-    if (!field || !isVideoSource || !textureRaster) return field;
-    return applyRasterTextureToPointField(field, textureRaster);
-  }, [field, isVideoSource, textureRaster]);
+    if (!densityAdjustedField || !isVideoSource || !textureRaster) return densityAdjustedField;
+    return applyRasterTextureToPointField(densityAdjustedField, textureRaster);
+  }, [densityAdjustedField, isVideoSource, textureRaster]);
   const maskedField = useMemo(() => {
     if (!texturedField || !isVideoSource || !maskRaster) return texturedField;
     return applyRasterMaskToPointField(texturedField, maskRaster, { strength: maskStrength, invert: maskInvert });
   }, [isVideoSource, maskInvert, maskRaster, maskStrength, texturedField]);
   const basePacked = useMemo(() => maskedField ? pointFieldToFloat32(maskedField) : undefined, [maskedField]);
   const morphPacked = useMemo(() => {
-    if (!field || !morphField) return undefined;
-    return morphMappingToFloat32(createMorphMapping(field, morphField));
-  }, [field, morphField]);
+    if (!densityAdjustedField || !morphField) return undefined;
+    return morphMappingToFloat32(createMorphMapping(densityAdjustedField, morphField));
+  }, [densityAdjustedField, morphField]);
 
   const easedProgress = applyMorphEasing(morphProgress, morphEasing);
   const activeMorph = morphEnabled && morphPacked ? morphPacked : undefined;
@@ -689,6 +707,7 @@ function App() {
     if (animationExporting) return;
     clearVideoSource();
     setSourceKind("procedural");
+    setProceduralSourceKind(kind);
     setRaster(undefined);
     setField(generatedField);
     setMorphRaster(undefined);
@@ -917,7 +936,7 @@ function App() {
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
-          {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
+          {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting || isProceduralSource} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting || isProceduralSource} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
           {isVideoSource && rendererMode !== "original" && <><div className="toggle-row"><span>{t("video.compositeOriginal")}</span><button aria-label={t("video.compositeOriginal")} disabled={animationExporting} className={`toggle ${videoCompositeOriginal ? "on" : ""}`} aria-pressed={videoCompositeOriginal} onClick={() => setVideoCompositeOriginal((value) => !value)} /></div>{videoCompositeOriginal && <label>{t("video.originalOpacity")}<div className="range-row"><input aria-label={t("video.originalOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacity * 100)} disabled={animationExporting} onChange={(e) => setVideoOriginalOpacity(Number(e.target.value) / 100)} /><output>{Math.round(videoOriginalOpacity * 100)}%</output></div></label>}{hasVideoMask && <><label>{t("video.maskStrength")}<div className="range-row"><input aria-label={t("video.maskStrength")} type="range" min="0" max="100" value={Math.round(maskStrength * 100)} disabled={animationExporting} onChange={(e) => setMaskStrength(Number(e.target.value) / 100)} /><output>{Math.round(maskStrength * 100)}%</output></div></label><div className="toggle-row"><span>{t("video.maskInvert")}</span><button aria-label={t("video.maskInvert")} disabled={animationExporting} className={`toggle ${maskInvert ? "on" : ""}`} aria-pressed={maskInvert} onClick={() => setMaskInvert((value) => !value)} /></div></>}{hasVideoAnalysis && <><label>{t("video.analysisStrength")}<div className="range-row"><input aria-label={t("video.analysisStrength")} type="range" min="0" max="100" value={Math.round(analysisStrength * 100)} disabled={animationExporting} onChange={(e) => setAnalysisStrength(Number(e.target.value) / 100)} /><output>{Math.round(analysisStrength * 100)}%</output></div></label><label>{t("video.analysisValue")}<code>{Math.round((analysisValue ?? 0) * 100)}%</code></label></>}</>}
           <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
