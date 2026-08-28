@@ -13,7 +13,7 @@ import {
   sampleRasterToPointField,
   type MorphEasing,
   type PointField,
-  type ProceduralSourceKind,
+  type GeneratedProceduralSourceKind,
   type RasterPixels,
 } from "@grs/core";
 import { OriginalPreview } from "./canvas/OriginalPreview";
@@ -163,7 +163,7 @@ function App() {
   const [field, setField] = useState<PointField>();
   const [morphField, setMorphField] = useState<PointField>();
   const [sourceKind, setSourceKind] = useState<SourceKind>("still");
-  const [proceduralSourceKind, setProceduralSourceKind] = useState<ProceduralSourceKind>();
+  const [proceduralSourceKind, setProceduralSourceKind] = useState<GeneratedProceduralSourceKind>();
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoTime, setVideoTime] = useState(0);
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -381,6 +381,10 @@ function App() {
         case "torus": setSourceLabel(t("procedural.torus")); break;
         case "grid": setSourceLabel(t("procedural.grid")); break;
         case "spiral": setSourceLabel(t("procedural.spiral")); break;
+        case "wave": setSourceLabel(t("procedural.wave")); break;
+        case "ribbon": setSourceLabel(t("procedural.ribbon")); break;
+        case "vortex": setSourceLabel(t("procedural.vortex")); break;
+        case "noise": setSourceLabel(t("procedural.noise")); break;
       }
     }
   }, [locale, proceduralSourceKind, raster, sourceKind, t]);
@@ -695,16 +699,20 @@ function App() {
     }
   };
 
-  const proceduralLabel = (kind: ProceduralSourceKind) => {
+  const proceduralLabel = (kind: GeneratedProceduralSourceKind) => {
     switch (kind) {
       case "sphere": return t("procedural.sphere");
       case "torus": return t("procedural.torus");
       case "grid": return t("procedural.grid");
       case "spiral": return t("procedural.spiral");
+      case "wave": return t("procedural.wave");
+      case "ribbon": return t("procedural.ribbon");
+      case "vortex": return t("procedural.vortex");
+      case "noise": return t("procedural.noise");
     }
   };
 
-  const useProceduralSource = (kind: ProceduralSourceKind, generatedField: PointField) => {
+  const useProceduralSource = (kind: GeneratedProceduralSourceKind, generatedField: PointField) => {
     if (animationExporting) return;
     clearVideoSource();
     setSourceKind("procedural");
@@ -885,6 +893,10 @@ function App() {
             torus: t("procedural.torus"),
             grid: t("procedural.grid"),
             spiral: t("procedural.spiral"),
+            wave: t("procedural.wave"),
+            ribbon: t("procedural.ribbon"),
+            vortex: t("procedural.vortex"),
+            noise: t("procedural.noise"),
           }}
           onCreate={({ kind, field: generatedField }) => useProceduralSource(kind, generatedField)}
         />

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import {
   generateProceduralPointField,
   type PointField,
-  type ProceduralSourceKind,
+  type GeneratedProceduralSourceKind,
 } from "@grs/core";
 
 export interface ProceduralSourcePanelLabels {
@@ -15,10 +15,14 @@ export interface ProceduralSourcePanelLabels {
   readonly torus: string;
   readonly grid: string;
   readonly spiral: string;
+  readonly wave: string;
+  readonly ribbon: string;
+  readonly vortex: string;
+  readonly noise: string;
 }
 
 export interface ProceduralSourceSelection {
-  readonly kind: ProceduralSourceKind;
+  readonly kind: GeneratedProceduralSourceKind;
   readonly count: number;
   readonly scale: number;
   readonly field: PointField;
@@ -31,19 +35,23 @@ interface ProceduralSourcePanelProps {
   readonly onCreate: (selection: ProceduralSourceSelection) => void;
 }
 
-const kinds: readonly ProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral"];
+const kinds: readonly GeneratedProceduralSourceKind[] = ["sphere", "torus", "grid", "spiral", "wave", "ribbon", "vortex", "noise"];
 
 export function ProceduralSourcePanel({ labels, disabled = false, seed = 1, onCreate }: ProceduralSourcePanelProps) {
-  const [kind, setKind] = useState<ProceduralSourceKind>("sphere");
+  const [kind, setKind] = useState<GeneratedProceduralSourceKind>("sphere");
   const [count, setCount] = useState(6000);
   const [scale, setScale] = useState(0.9);
 
-  const kindLabels = useMemo<Record<ProceduralSourceKind, string>>(() => ({
+  const kindLabels = useMemo<Record<GeneratedProceduralSourceKind, string>>(() => ({
     sphere: labels.sphere,
     torus: labels.torus,
     grid: labels.grid,
     spiral: labels.spiral,
-  }), [labels.grid, labels.spiral, labels.sphere, labels.torus]);
+    wave: labels.wave,
+    ribbon: labels.ribbon,
+    vortex: labels.vortex,
+    noise: labels.noise,
+  }), [labels.grid, labels.noise, labels.ribbon, labels.spiral, labels.sphere, labels.torus, labels.vortex, labels.wave]);
 
   const create = () => {
     const field = generateProceduralPointField({ kind, count, scale, seed });
