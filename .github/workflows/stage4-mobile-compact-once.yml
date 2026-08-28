@@ -1,0 +1,39 @@
+name: stage4-mobile-compact-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage4-mobile-compact-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage4/flow-noise-ui
+      - name: Compact eight-form selector on narrow first run
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/src/mobile-ux.css')
+          text = path.read_text()
+          anchor = '''  .source-secondary { width: 100%; }\n  .supported-note { margin-bottom: 9px; }'''
+          replacement = '''  .source-secondary { width: 100%; }\n  .procedural-source-panel { margin-top: 8px; padding-top: 8px; }\n  .procedural-source-panel .source-heading { margin-top: 0; margin-bottom: 3px; }\n  .procedural-source-panel > .supported-note { margin: 3px 0 5px; line-height: 1.25; }\n  .procedural-kind-grid { gap: 4px; margin: 5px 0 6px; }\n  .procedural-kind-grid .source-secondary { min-height: 30px; padding: 5px 4px; font-size: 10px; }\n  .procedural-control-row { margin: 5px 0; }\n  .procedural-source-panel > .source-add { padding-block: 7px; }\n  .supported-note { margin-bottom: 9px; }'''
+          count = text.count(anchor)
+          if count != 1:
+              raise SystemExit(f'mobile anchor matches: {count}')
+          path.write_text(text.replace(anchor, replacement, 1))
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage4-mobile-compact-once.yml
+      - name: Commit mobile compaction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/mobile-ux.css .github/workflows/stage4-mobile-compact-once.yml
+          git commit -m "Stage 4: keep procedural first run visible on mobile"
+          git push origin HEAD:stage4/flow-noise-ui
