@@ -375,6 +375,7 @@ function App() {
   useEffect(() => {
     if (!raster && sourceKind !== "procedural") setSourceDetail(t("source.fallbackDetail"));
     if (sourceKind === "procedural" && proceduralSourceKind) {
+      setSourceDetail(t("procedural.detail"));
       switch (proceduralSourceKind) {
         case "sphere": setSourceLabel(t("procedural.sphere")); break;
         case "torus": setSourceLabel(t("procedural.torus")); break;
