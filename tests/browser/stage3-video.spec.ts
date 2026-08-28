@@ -223,7 +223,7 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect.poll(async () => Number(await page.getByLabel("Video position").inputValue())).toBeLessThanOrEqual(21);
   await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeGreaterThan(0.12);
   await expect.poll(() => auxiliaryVideoProgress(page, 1)).toBeLessThan(0.28);
-  await page.waitForTimeout(150);
+  await expect.poll(async () => (await brightCentroid(page, 80)).count).toBeGreaterThan(30);
   const syncedVisible = await brightCentroid(page, 80);
   expect(syncedVisible.count).toBeGreaterThan(30);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-mask-synced-seek-20.png` });
@@ -276,7 +276,7 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeGreaterThan(0.72);
   await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeLessThan(0.88);
   await expect(page.locator("label").filter({ hasText: "Brightness" })).toContainText("100%");
-  await page.waitForTimeout(150);
+  await expect.poll(async () => (await brightCentroid(page, 80)).count).toBeGreaterThan(50);
   const analysisBright = await brightCentroid(page, 80);
   expect(analysisBright.count).toBeGreaterThan(50);
   await preview.screenshot({ path: `${evidenceDir}/stage3-video-analysis-bright-seek-80.png` });
@@ -287,7 +287,10 @@ test("imports a browser-decodable video and transforms changing frames", async (
   await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeGreaterThan(0.12);
   await expect.poll(() => auxiliaryVideoProgress(page, 3)).toBeLessThan(0.28);
   await expect(page.locator("label").filter({ hasText: "Brightness" })).toContainText("0%");
-  await page.waitForTimeout(150);
+  await expect.poll(async () => {
+    const current = await brightCentroid(page, 80);
+    return current.count > 5 && analysisBright.count > current.count * 2;
+  }).toBe(true);
   const analysisDark = await brightCentroid(page, 80);
   expect(analysisDark.count).toBeGreaterThan(5);
   expect(analysisBright.count).toBeGreaterThan(analysisDark.count * 2);
