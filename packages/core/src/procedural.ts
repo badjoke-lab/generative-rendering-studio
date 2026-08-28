@@ -1,17 +1,14 @@
 import type { FieldSample, PointField } from "./index";
 
-export type ProceduralSourceKind =
-  | "sphere"
-  | "torus"
-  | "grid"
-  | "spiral"
-  | "wave"
-  | "ribbon"
-  | "vortex"
-  | "noise";
+export type PrimitiveProceduralSourceKind = "sphere" | "torus" | "grid" | "spiral";
+export type FlowNoiseProceduralSourceKind = "wave" | "ribbon" | "vortex" | "noise";
+export type GeneratedProceduralSourceKind = PrimitiveProceduralSourceKind | FlowNoiseProceduralSourceKind;
+
+// Compatibility alias for the currently published primitive-source UI surface.
+export type ProceduralSourceKind = PrimitiveProceduralSourceKind;
 
 export interface ProceduralPointFieldOptions {
-  readonly kind: ProceduralSourceKind;
+  readonly kind: GeneratedProceduralSourceKind;
   readonly count?: number;
   readonly scale?: number;
   readonly seed?: number;
