@@ -107,7 +107,7 @@ body:has(.empty-source-card) .transport-bar { opacity: .46; }
   .procedural-source-panel { margin-top: 8px; padding-top: 8px; }
   .procedural-source-panel .source-heading { margin-top: 0; margin-bottom: 3px; }
   .procedural-source-panel > .supported-note { margin: 3px 0 5px; line-height: 1.25; }
-  .procedural-kind-grid { gap: 4px; margin: 5px 0 6px; }
+  .procedural-kind-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin: 5px 0 6px; }
   .procedural-kind-grid .source-secondary { min-height: 30px; padding: 5px 4px; font-size: 10px; }
   .procedural-control-row { margin: 5px 0; }
   .procedural-source-panel > .source-add { padding-block: 7px; }
