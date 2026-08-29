@@ -112,6 +112,7 @@ export const en = {
   "motion.speed": "Speed",
   "motion.duration": "Animation duration",
   "motion.keyframes": "Animate strength",
+  "motion.keyframesToggle": "Toggle keyframes",
   "motion.keyframesHint": "Two keyframes drive Motion strength across the animation duration. The timeline stays optional for ordinary still work.",
   "motion.startStrength": "Start strength",
   "motion.endStrength": "End strength",

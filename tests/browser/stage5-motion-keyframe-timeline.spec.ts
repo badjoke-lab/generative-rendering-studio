@@ -18,7 +18,7 @@ test("Motion Strength keyframes scrub and play through the optional timeline", a
   await expect(page.getByLabel("Timeline position")).toBeDisabled();
 
   await motionType.selectOption("pulse");
-  const keyframeToggle = page.getByRole("button", { name: "Animate strength", exact: true });
+  const keyframeToggle = page.getByRole("button", { name: "Toggle keyframes", exact: true });
   await keyframeToggle.click();
   await expect(keyframeToggle).toHaveAttribute("aria-pressed", "true");
 

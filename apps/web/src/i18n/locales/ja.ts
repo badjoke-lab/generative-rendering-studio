@@ -114,6 +114,7 @@ export const ja: Record<TranslationKey, string> = {
   "motion.speed": "速度",
   "motion.duration": "アニメーション時間",
   "motion.keyframes": "強さをキーフレーム化",
+  "motion.keyframesToggle": "キーフレーム切替",
   "motion.keyframesHint": "2つのキーフレームでアニメーション時間内のMotionの強さを変化させます。通常の静止画作業ではタイムラインは必須ではありません。",
   "motion.startStrength": "開始時の強さ",
   "motion.endStrength": "終了時の強さ",
