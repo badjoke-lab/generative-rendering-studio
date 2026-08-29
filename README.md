@@ -14,11 +14,11 @@ This repository is under active development. The current working codename is **G
 
 ## Current development focus
 
-The publicly deployed **Public Alpha** covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, browser-safe still/short-animation output where supported, and Stage 3 existing-video transformation.
+The publicly deployed **Public Alpha** currently covers still-image/SVG/text rendering, Original/Glyph/Point/Particle looks, source-to-source Morph, browser-safe still/short-animation output where supported, Stage 3 existing-video transformation, Stage 4 procedural sources, and initial Stage 5 Motion/keyframe work.
 
 Browser-decodable MP4/WebM can drive Original/Glyph/Point/Particle previews with video transport and temporal-coherence hardening, with an optional original-video underlay beneath transformed output. Current-frame PNG/WebP export preserves that composition when enabled. A synchronized auxiliary video can also be used as a **Texture Video** for source-space color, a **Mask Video** for visibility, or an **Analysis Video** whose frame brightness drives transformed element size. These auxiliary roles follow normalized main-video progress and remain local to the browser/device.
 
-Stage 3 release gates are complete, including Chromium/WebKit browser checks and representative real-footage coherence/reliability validation. **Stage 4 procedural sources are now in progress on main:** Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise can be generated as renderer-neutral Point Fields and rendered through compatible Glyph/Point/Particle looks. Organic/example presets remain Stage 4 work. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later stages.
+Stage 3 and Stage 4 are complete on main. Stage 4 includes Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, Noise, Bloom, Filament, and Cluster as renderer-neutral procedural Point Fields. **Stage 5 Studio workflow is now in progress on main:** Motion is explicit and Static by default, with user-selected Pulse/Drift plus strength/speed controls and short Motion animation export. A first optional keyframe/parameter-automation slice can drive Motion Strength between start/end keyframes and scrub or play it through the existing transport. The simpler still-image path remains available without enabling the timeline. Broader Stage 5 composition work remains ongoing, while Stage 6 audio/data modulation remains later work.
 
 The project is browser-first and designed around local processing. Public claims track verified shipped behavior rather than unreleased internal plans.
 
