@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { buildStableGlyphIndices, type GlyphPreset } from "./stableGlyphs";
+import { buildRecolorMaskedColors } from "./recolorMask";
 
 export type PreviewRendererMode = "point" | "glyph" | "particle";
 export type { GlyphPreset } from "./stableGlyphs";
@@ -242,12 +243,14 @@ export function WebGLPreview({
     const sourceColors = colors && colors.length === count * 4 ? colors : buildFallbackColors(count);
     const targetPoints = targetPositions && targetPositions.length === points.length ? targetPositions : points;
     const targetSourceColors = targetColors && targetColors.length === sourceColors.length ? targetColors : sourceColors;
+    const displaySourceColors = useSourceColor ? sourceColors : buildRecolorMaskedColors(sourceColors);
+    const displayTargetColors = useSourceColor ? targetSourceColors : buildRecolorMaskedColors(targetSourceColors);
     const glyphs = buildStableGlyphIndices(points, sourceColors, glyphPreset);
 
     const positionBuffer = bindFloatBuffer(gl, program, "a_position", points, 2);
     const targetPositionBuffer = bindFloatBuffer(gl, program, "a_target_position", targetPoints, 2);
-    const colorBuffer = bindFloatBuffer(gl, program, "a_color", sourceColors, 4);
-    const targetColorBuffer = bindFloatBuffer(gl, program, "a_target_color", targetSourceColors, 4);
+    const colorBuffer = bindFloatBuffer(gl, program, "a_color", displaySourceColors, 4);
+    const targetColorBuffer = bindFloatBuffer(gl, program, "a_target_color", displayTargetColors, 4);
     const glyphBuffer = bindFloatBuffer(gl, program, "a_glyph", glyphs, 1);
 
     const time = gl.getUniformLocation(program, "u_time");
