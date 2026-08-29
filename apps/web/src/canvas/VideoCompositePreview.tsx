@@ -1,7 +1,7 @@
 import type { CSSProperties, RefObject } from "react";
 import type { RasterPixels } from "@grs/core";
 import { OriginalPreview } from "./OriginalPreview";
-import { WebGLPreview, type GlyphPreset, type PreviewRendererMode } from "../webgl/WebGLPreview";
+import { WebGLPreview, type GlyphPreset, type PreviewMotionMode, type PreviewRendererMode } from "../webgl/WebGLPreview";
 
 const layerStyle: CSSProperties = {
   position: "absolute",
@@ -19,6 +19,9 @@ export function VideoCompositePreview({
   positions,
   colors,
   mode,
+  motionMode,
+  motionStrength,
+  motionSpeed,
   elementSize,
   tint,
   background,
@@ -33,6 +36,9 @@ export function VideoCompositePreview({
   positions?: Float32Array;
   colors?: Float32Array;
   mode: PreviewRendererMode;
+  motionMode: PreviewMotionMode;
+  motionStrength: number;
+  motionSpeed: number;
   elementSize: number;
   tint: string;
   background: string;
@@ -61,6 +67,9 @@ export function VideoCompositePreview({
           positions={positions}
           colors={colors}
           mode={mode}
+          motionMode={motionMode}
+          motionStrength={motionStrength}
+          motionSpeed={motionSpeed}
           elementSize={elementSize}
           tint={tint}
           background={background}

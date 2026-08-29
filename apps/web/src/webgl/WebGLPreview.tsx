@@ -3,6 +3,7 @@ import { buildStableGlyphIndices, type GlyphPreset } from "./stableGlyphs";
 import { buildRecolorMaskedColors } from "./recolorMask";
 
 export type PreviewRendererMode = "point" | "glyph" | "particle";
+export type PreviewMotionMode = "static" | "pulse" | "drift";
 export type { GlyphPreset } from "./stableGlyphs";
 
 const vertexShaderSource = `#version 300 es
@@ -11,8 +12,12 @@ in vec2 a_target_position;
 in vec4 a_color;
 in vec4 a_target_color;
 in float a_glyph;
+uniform float u_time;
 uniform float u_point_size;
 uniform float u_morph_progress;
+uniform int u_motion_mode;
+uniform float u_motion_strength;
+uniform float u_motion_speed;
 uniform int u_use_source_color;
 uniform vec3 u_tint;
 uniform vec2 u_view_scale;
@@ -22,7 +27,11 @@ void main() {
   float morph = clamp(u_morph_progress, 0.0, 1.0);
   vec2 sourcePosition = mix(a_position, a_target_position, morph);
   vec4 sourceColor = mix(a_color, a_target_color, morph);
-  vec2 p = sourcePosition * 0.94 * u_view_scale;
+  float motionTime = u_time * max(0.05, u_motion_speed);
+  float wave = sin(motionTime * 1.4 + sourcePosition.x * 8.0 + sourcePosition.y * 5.0);
+  float pulse = u_motion_mode == 1 ? 0.018 * u_motion_strength * wave : 0.0;
+  vec2 drift = u_motion_mode == 2 ? vec2(cos(motionTime + sourcePosition.y * 9.0), sin(motionTime * 0.8 + sourcePosition.x * 7.0)) * 0.008 * u_motion_strength : vec2(0.0);
+  vec2 p = (sourcePosition * (0.94 + pulse) + drift) * u_view_scale;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
@@ -183,6 +192,9 @@ export function WebGLPreview({
   targetColors,
   morphProgress = 0,
   mode = "point",
+  motionMode = "static",
+  motionStrength = 1,
+  motionSpeed = 1,
   elementSize = 1,
   tint = "#c7c2ff",
   background = "#090b10",
@@ -197,6 +209,9 @@ export function WebGLPreview({
   targetColors?: Float32Array;
   morphProgress?: number;
   mode?: PreviewRendererMode;
+  motionMode?: PreviewMotionMode;
+  motionStrength?: number;
+  motionSpeed?: number;
   elementSize?: number;
   tint?: string;
   background?: string;
@@ -244,8 +259,12 @@ export function WebGLPreview({
     const targetColorBuffer = bindFloatBuffer(gl, program, "a_target_color", displayTargetColors, 4);
     const glyphBuffer = bindFloatBuffer(gl, program, "a_glyph", glyphs, 1);
 
+    const time = gl.getUniformLocation(program, "u_time");
     const pointSize = gl.getUniformLocation(program, "u_point_size");
     const morph = gl.getUniformLocation(program, "u_morph_progress");
+    const motionModeUniform = gl.getUniformLocation(program, "u_motion_mode");
+    const motionStrengthUniform = gl.getUniformLocation(program, "u_motion_strength");
+    const motionSpeedUniform = gl.getUniformLocation(program, "u_motion_speed");
     const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
     const tintUniform = gl.getUniformLocation(program, "u_tint");
     const viewScaleUniform = gl.getUniformLocation(program, "u_view_scale");
@@ -256,7 +275,7 @@ export function WebGLPreview({
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     let frame = 0;
-    const render = () => {
+    const render = (now: number) => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
       const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
@@ -269,7 +288,11 @@ export function WebGLPreview({
       else gl.clearColor(bgRgb[0], bgRgb[1], bgRgb[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
+      gl.uniform1f(time, now / 1000);
       gl.uniform1f(morph, Math.min(1, Math.max(0, morphProgressRef.current)));
+      gl.uniform1i(motionModeUniform, motionMode === "pulse" ? 1 : motionMode === "drift" ? 2 : 0);
+      gl.uniform1f(motionStrengthUniform, Math.max(0, motionStrength));
+      gl.uniform1f(motionSpeedUniform, Math.max(0.05, motionSpeed));
       gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
       gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
       const viewportAspect = width / Math.max(1, height);
@@ -292,7 +315,7 @@ export function WebGLPreview({
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
+  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, motionMode, motionSpeed, motionStrength, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
