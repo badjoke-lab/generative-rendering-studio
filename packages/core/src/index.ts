@@ -64,3 +64,4 @@ export * from "./texture";
 export * from "./analysis";
 export * from "./procedural";
 export * from "./studio";
+export * from "./timeline";
