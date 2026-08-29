@@ -20,9 +20,7 @@ async function settle(page: Page) {
   );
 }
 
-async function setRange(page: Page, labelText: string, value: number) {
-  const label = page.locator("section.inspector-section label").filter({ hasText: labelText }).first();
-  const input = label.locator('input[type="range"]');
+async function setRange(input: import("@playwright/test").Locator, value: number) {
   await input.evaluate((element, nextValue) => {
     const inputElement = element as HTMLInputElement;
     inputElement.value = String(nextValue);
@@ -84,8 +82,13 @@ test("webkit second-browser critical: render color preserves tonal source struct
   await expect(page.locator(".asset-meta strong").filter({ hasText: "light-artwork.svg" })).toBeVisible();
 
   await page.getByRole("button", { name: "Glyph", exact: true }).click();
-  await setRange(page, "Density", 100);
-  await setRange(page, "Size", 180);
+  const glyphSettings = page.locator("section.inspector-section").filter({
+    has: page.getByRole("heading", { name: "Glyph Settings", exact: true }),
+  });
+  const ranges = glyphSettings.locator('input[type="range"]');
+  await expect(ranges).toHaveCount(4);
+  await setRange(ranges.nth(0), 100);
+  await setRange(ranges.nth(1), 180);
 
   const sourceColorToggle = page.locator(".toggle-row").filter({ hasText: "Source Color" }).locator("button.toggle");
   if ((await sourceColorToggle.getAttribute("aria-pressed")) !== "true") await sourceColorToggle.click();
