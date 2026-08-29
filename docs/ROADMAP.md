@@ -127,7 +127,7 @@ Outcome: existing footage becomes a first-class source that can remain original 
 
 User behavior: import existing footage; keep it visible as Original or transform frames into compatible render representations; preview stable transformed motion; combine original and transformed versions rather than being forced to generate footage from scratch.
 
-Status: completed on main and released as the Public Alpha. Browser-decodable MP4/WebM can be loaded as the main source; decoded frames feed Original/Glyph/Point/Particle; play/pause/start/end/seek controls follow the video clock; and the current frame can be saved as PNG/WebP. Temporal-coherence hardening uses deterministic source-space sampling and stable glyph identity. Original and transformed video can be composited with adjustable original opacity, and current-frame export preserves that composition. Synchronized auxiliary browser-decodable video can serve as Texture Video, Mask Video, or Analysis Video while preserving the main point-field identity and remaining local to the browser/device. Stage 3 release gates include Chromium and focused WebKit coverage plus representative real-footage validation across Original/Glyph/Point/Particle at multiple seek positions and repeated-seek stability. Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later work.
+Status: completed on main and released as the Public Alpha. Browser-decodable MP4/WebM can be loaded as the main source; decoded frames feed Original/Glyph/Point/Particle; play/pause/start/end/seek controls follow the video clock; and the current frame can be saved as PNG/WebP. Temporal-coherence hardening uses deterministic source-space sampling and stable glyph identity. Original and transformed video can be composited with adjustable original opacity, and current-frame export preserves that composition. Synchronized auxiliary browser-decodable video can serve as Texture Video, Mask Video, or Analysis Video while preserving the main point-field identity and remaining local to the browser/device. Stage 3 release gates include Chromium and focused WebKit coverage plus representative real-footage validation across Original/Glyph/Point/Particle at multiple seek positions and repeated-seek stability. Stage 5 Studio workflow is now in progress; Stage 6 audio/data modulation remains later work.
 
 ## Stage 4 — Procedural sources
 
@@ -141,7 +141,7 @@ Outcome: users can create renderable source material inside the tool rather than
 
 User behavior: choose or configure a generated primitive/flow/noise/organic source, then treat it like imported media by applying compatible renderers and later motion/composition controls. Individual recognizable forms are presets, not the definition of the engine.
 
-Status: completed on main. Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, Noise, Bloom, Filament, and Cluster are shipped as renderer-neutral generated Point Fields with compatible Glyph/Point/Particle rendering, English/Japanese UI coverage, and desktop/mobile browser release checks. Generated-source still output is release-gated through real PNG/WebP download and decode validation. Stage 5 Studio composition is the next development stage.
+Status: completed on main. Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, Noise, Bloom, Filament, and Cluster are shipped as renderer-neutral generated Point Fields with compatible Glyph/Point/Particle rendering, English/Japanese UI coverage, and desktop/mobile browser release checks. Generated-source still output is release-gated through real PNG/WebP download and decode validation. Stage 5 Studio composition is now in progress.
 
 ## Stage 5 — Studio workflow
 
@@ -158,7 +158,7 @@ Outcome: the product becomes a multi-scene production environment where sources,
 
 User behavior: stack multiple sources and generated elements as layers; place and trim time-based elements; keyframe visual parameters and camera motion; apply masks/blending/effects; arrange Morph and other motion over time; preview a composed sequence. Still-image users can continue using the simpler non-timeline path.
 
-Status: not started.
+Status: in progress on main. Initial Studio work now includes explicit optional Motion controls with Static as the default, short Motion animation export, and a first keyframe/parameter-automation slice where Motion Strength can be driven between start/end keyframes and scrubbed or played through the existing transport. The simpler still-image path remains available without enabling the timeline. Broader Layers/Timeline/Camera/Effects composition remains ongoing Stage 5 work.
 
 ## Stage 6 — Audio/data modulation
 
