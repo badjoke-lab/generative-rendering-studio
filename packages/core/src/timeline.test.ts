@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   createLayerOpacityTrack,
+  createMotionStrengthTrack,
   createNumericKeyframe,
   createStudioTimeline,
   normalizeNumericKeyframes,
   sampleLayerOpacityTrack,
+  sampleMotionStrengthTrack,
   sampleNumericKeyframes,
   setTimelinePlayhead,
 } from "./timeline";
@@ -67,6 +69,25 @@ describe("timeline and numeric keyframes", () => {
     ]);
     expect(sampleLayerOpacityTrack(track, 10)).toBe(1);
     expect(sampleLayerOpacityTrack(createLayerOpacityTrack("empty", "layer-a"), 1)).toBeNull();
+  });
+
+  it("creates bounded Motion strength tracks and samples the same keyframe interpolation", () => {
+    const track = createMotionStrengthTrack("motion-strength", [
+      createNumericKeyframe(4, 4),
+      createNumericKeyframe(0, -1),
+      createNumericKeyframe(2, 1, "ease-in-out"),
+    ]);
+
+    expect(track.kind).toBe("motion-strength");
+    expect(track.keyframes).toEqual([
+      { time: 0, value: 0, easing: "linear" },
+      { time: 2, value: 1, easing: "ease-in-out" },
+      { time: 4, value: 2, easing: "linear" },
+    ]);
+    expect(sampleMotionStrengthTrack(track, 1)).toBeCloseTo(0.5, 6);
+    expect(sampleMotionStrengthTrack(track, 3)).toBeCloseTo(1.5, 6);
+    expect(sampleMotionStrengthTrack(track, 99)).toBe(2);
+    expect(sampleMotionStrengthTrack(createMotionStrengthTrack("empty"), 1)).toBeNull();
   });
 
   it("normalizes timeline duration and bounds the playhead without sharing track arrays", () => {
