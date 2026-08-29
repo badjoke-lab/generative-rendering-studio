@@ -8,7 +8,8 @@ export interface VideoLayerStackLabels {
   readonly summary: string;
   readonly original: string;
   readonly transformed: string;
-  readonly visible: string;
+  readonly originalToggle: string;
+  readonly originalOpacity: string;
   readonly opacity: string;
   readonly blend: string;
   readonly normal: string;
@@ -49,7 +50,7 @@ export function VideoLayerStackPanel({
         <button
           type="button"
           className={`stage5-layer-visibility ${originalVisible ? "on" : ""}`}
-          aria-label={`${labels.visible}: ${labels.original}`}
+          aria-label={labels.originalToggle}
           aria-pressed={originalVisible}
           disabled={disabled}
           onClick={() => onOriginalVisibleChange(!originalVisible)}
@@ -61,7 +62,7 @@ export function VideoLayerStackPanel({
           <span>{labels.opacity}</span>
         </div>
         <input
-          aria-label={`${labels.opacity}: ${labels.original}`}
+          aria-label={labels.originalOpacity}
           type="range"
           min="0"
           max="100"
