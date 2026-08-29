@@ -1,0 +1,53 @@
+name: docs-stage5-sync-once
+
+on:
+  push:
+    branches:
+      - docs/stage5-in-progress
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/stage5-in-progress
+          fetch-depth: 0
+      - name: Update public roadmap status
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("docs/ROADMAP.md")
+          text = path.read_text()
+          replacements = [
+            (
+              "Stage 5 Layers/Timeline and Stage 6 audio/data modulation remain later work.",
+              "Stage 5 Studio workflow is now in progress; Stage 6 audio/data modulation remains later work.",
+            ),
+            (
+              "Stage 5 Studio composition is the next development stage.",
+              "Stage 5 Studio composition is now in progress.",
+            ),
+            (
+              "Status: not started.\n\n## Stage 6 — Audio/data modulation",
+              "Status: in progress on main. Initial Studio work now includes explicit optional Motion controls with Static as the default, short Motion animation export, and a first keyframe/parameter-automation slice where Motion Strength can be driven between start/end keyframes and scrubbed or played through the existing transport. The simpler still-image path remains available without enabling the timeline. Broader Layers/Timeline/Camera/Effects composition remains ongoing Stage 5 work.\n\n## Stage 6 — Audio/data modulation",
+            ),
+          ]
+          for old, new in replacements:
+            if text.count(old) != 1:
+              raise SystemExit(f"roadmap target count for {old[:48]!r}: {text.count(old)}")
+            text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit and self-delete
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ROADMAP.md
+          git rm .github/workflows/docs-stage5-sync-once.yml
+          git commit -m "Docs: mark Stage 5 Studio work in progress"
+          git push
