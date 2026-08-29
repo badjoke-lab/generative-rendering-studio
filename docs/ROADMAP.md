@@ -141,7 +141,7 @@ Outcome: users can create renderable source material inside the tool rather than
 
 User behavior: choose or configure a generated primitive/flow/noise/organic source, then treat it like imported media by applying compatible renderers and later motion/composition controls. Individual recognizable forms are presets, not the definition of the engine.
 
-Status: in progress on main. Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, and Noise are shipped as renderer-neutral generated Point Fields with compatible Glyph/Point/Particle rendering, English/Japanese UI coverage, and browser/mobile release checks. Organic/example presets remain Stage 4 work; Stage 5 composition features are not part of this stage.
+Status: completed on main. Sphere, Torus, Grid, Spiral, Wave, Ribbon, Vortex, Noise, Bloom, Filament, and Cluster are shipped as renderer-neutral generated Point Fields with compatible Glyph/Point/Particle rendering, English/Japanese UI coverage, and desktop/mobile browser release checks. Generated-source still output is release-gated through real PNG/WebP download and decode validation. Stage 5 Studio composition is the next development stage.
 
 ## Stage 5 — Studio workflow
 
