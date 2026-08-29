@@ -11,28 +11,21 @@ in vec2 a_target_position;
 in vec4 a_color;
 in vec4 a_target_color;
 in float a_glyph;
-uniform float u_time;
 uniform float u_point_size;
 uniform float u_morph_progress;
-uniform int u_mode;
 uniform int u_use_source_color;
 uniform vec3 u_tint;
 uniform vec2 u_view_scale;
 flat out int v_glyph;
-out float v_phase;
 out vec4 v_color;
 void main() {
   float morph = clamp(u_morph_progress, 0.0, 1.0);
   vec2 sourcePosition = mix(a_position, a_target_position, morph);
   vec4 sourceColor = mix(a_color, a_target_color, morph);
-  float wave = sin(u_time * 1.4 + sourcePosition.x * 8.0 + sourcePosition.y * 5.0);
-  float pulse = u_mode == 2 ? 0.024 * wave : 0.012 * wave;
-  vec2 drift = u_mode == 2 ? vec2(cos(u_time + sourcePosition.y * 9.0), sin(u_time * 0.8 + sourcePosition.x * 7.0)) * 0.005 : vec2(0.0);
-  vec2 p = (sourcePosition * (0.94 + pulse) + drift) * u_view_scale;
+  vec2 p = sourcePosition * 0.94 * u_view_scale;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
-  v_phase = wave;
   v_color = u_use_source_color == 1 ? sourceColor : vec4(u_tint, sourceColor.a);
 }`;
 
@@ -48,7 +41,6 @@ void main() {
 
 const particleFragmentShaderSource = `#version 300 es
 precision highp float;
-in float v_phase;
 in vec4 v_color;
 out vec4 outColor;
 void main() {
@@ -57,9 +49,8 @@ void main() {
   if (d > 0.5) discard;
   float core = smoothstep(0.30, 0.0, d);
   float halo = smoothstep(0.5, 0.10, d) * 0.45;
-  float energy = 0.86 + 0.14 * v_phase;
   vec3 highlight = mix(v_color.rgb * 0.72, min(vec3(1.0), v_color.rgb * 1.35 + 0.12), core);
-  outColor = vec4(highlight * energy, v_color.a * min(1.0, core + halo));
+  outColor = vec4(highlight, v_color.a * min(1.0, core + halo));
 }`;
 
 const glyphFragmentShaderSource = `#version 300 es
@@ -253,10 +244,8 @@ export function WebGLPreview({
     const targetColorBuffer = bindFloatBuffer(gl, program, "a_target_color", displayTargetColors, 4);
     const glyphBuffer = bindFloatBuffer(gl, program, "a_glyph", glyphs, 1);
 
-    const time = gl.getUniformLocation(program, "u_time");
     const pointSize = gl.getUniformLocation(program, "u_point_size");
     const morph = gl.getUniformLocation(program, "u_morph_progress");
-    const modeUniform = gl.getUniformLocation(program, "u_mode");
     const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
     const tintUniform = gl.getUniformLocation(program, "u_tint");
     const viewScaleUniform = gl.getUniformLocation(program, "u_view_scale");
@@ -267,7 +256,7 @@ export function WebGLPreview({
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     let frame = 0;
-    const render = (now: number) => {
+    const render = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
       const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
@@ -280,9 +269,7 @@ export function WebGLPreview({
       else gl.clearColor(bgRgb[0], bgRgb[1], bgRgb[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
-      gl.uniform1f(time, now / 1000);
       gl.uniform1f(morph, Math.min(1, Math.max(0, morphProgressRef.current)));
-      gl.uniform1i(modeUniform, mode === "particle" ? 2 : mode === "glyph" ? 1 : 0);
       gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
       gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
       const viewportAspect = width / Math.max(1, height);
