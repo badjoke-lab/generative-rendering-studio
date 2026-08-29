@@ -224,6 +224,10 @@ export function WebGLPreview({
   const canvasRef = externalCanvasRef ?? internalCanvasRef;
   const morphProgressRef = useRef(morphProgress);
   morphProgressRef.current = morphProgress;
+  const motionStrengthRef = useRef(motionStrength);
+  motionStrengthRef.current = motionStrength;
+  const motionSpeedRef = useRef(motionSpeed);
+  motionSpeedRef.current = motionSpeed;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -291,8 +295,8 @@ export function WebGLPreview({
       gl.uniform1f(time, now / 1000);
       gl.uniform1f(morph, Math.min(1, Math.max(0, morphProgressRef.current)));
       gl.uniform1i(motionModeUniform, motionMode === "pulse" ? 1 : motionMode === "drift" ? 2 : 0);
-      gl.uniform1f(motionStrengthUniform, Math.max(0, motionStrength));
-      gl.uniform1f(motionSpeedUniform, Math.max(0.05, motionSpeed));
+      gl.uniform1f(motionStrengthUniform, Math.max(0, motionStrengthRef.current));
+      gl.uniform1f(motionSpeedUniform, Math.max(0.05, motionSpeedRef.current));
       gl.uniform1i(sourceColorUniform, useSourceColor ? 1 : 0);
       gl.uniform3f(tintUniform, tintRgb[0], tintRgb[1], tintRgb[2]);
       const viewportAspect = width / Math.max(1, height);
@@ -315,7 +319,7 @@ export function WebGLPreview({
       gl.deleteBuffer(glyphBuffer);
       gl.deleteProgram(program);
     };
-  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, motionMode, motionSpeed, motionStrength, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
+  }, [background, canvasRef, colors, elementSize, glyphPreset, mode, motionMode, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
   return <canvas ref={canvasRef} className="preview-canvas" />;
