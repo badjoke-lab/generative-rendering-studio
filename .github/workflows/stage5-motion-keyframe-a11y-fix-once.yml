@@ -1,0 +1,64 @@
+name: stage5-motion-keyframe-a11y-fix-once
+
+on:
+  push:
+    branches:
+      - stage5/motion-keyframe-timeline
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage5/motion-keyframe-timeline
+          fetch-depth: 0
+      - name: Separate keyframe toggle accessible name
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path("apps/web/src/main.tsx")
+          text = main.read_text()
+          old = 'aria-label={t("motion.keyframes")} disabled={animationExporting || morphEnabled}'
+          new = 'aria-label={t("motion.keyframesToggle")} disabled={animationExporting || morphEnabled}'
+          if text.count(old) != 1:
+              raise SystemExit(f"main target count={text.count(old)}")
+          main.write_text(text.replace(old, new, 1))
+
+          en = Path("apps/web/src/i18n/locales/en.ts")
+          text = en.read_text()
+          old = '  "motion.keyframes": "Animate strength",\n'
+          new = old + '  "motion.keyframesToggle": "Toggle keyframes",\n'
+          if text.count(old) != 1:
+              raise SystemExit(f"en target count={text.count(old)}")
+          en.write_text(text.replace(old, new, 1))
+
+          ja = Path("apps/web/src/i18n/locales/ja.ts")
+          text = ja.read_text()
+          old = '  "motion.keyframes": "強さをキーフレーム化",\n'
+          new = old + '  "motion.keyframesToggle": "キーフレーム切替",\n'
+          if text.count(old) != 1:
+              raise SystemExit(f"ja target count={text.count(old)}")
+          ja.write_text(text.replace(old, new, 1))
+
+          test = Path("tests/browser/stage5-motion-keyframe-timeline.spec.ts")
+          text = test.read_text()
+          old = 'page.getByRole("button", { name: "Animate strength", exact: true })'
+          new = 'page.getByRole("button", { name: "Toggle keyframes", exact: true })'
+          if text.count(old) != 1:
+              raise SystemExit(f"test target count={text.count(old)}")
+          test.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit fix and self-delete
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts tests/browser/stage5-motion-keyframe-timeline.spec.ts
+          git rm .github/workflows/stage5-motion-keyframe-a11y-fix-once.yml
+          git commit -m "Fix Motion keyframe accessible name collision"
+          git push
