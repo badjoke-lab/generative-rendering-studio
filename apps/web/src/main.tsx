@@ -19,7 +19,8 @@ import {
 import { OriginalPreview } from "./canvas/OriginalPreview";
 import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
-import { composeCanvasLayers } from "./export/composeCanvasLayers";
+import { composeCanvasStack } from "./export/composeCanvasLayers";
+import { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
 import { useLocale, type Locale } from "./i18n";
 import { WebGLPreview, type GlyphPreset, type PreviewRendererMode } from "./webgl/WebGLPreview";
@@ -169,6 +170,7 @@ function App() {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoCompositeOriginal, setVideoCompositeOriginal] = useState(false);
   const [videoOriginalOpacity, setVideoOriginalOpacity] = useState(0.55);
+  const [videoBlendMode, setVideoBlendMode] = useState<VideoLayerBlendMode>("normal");
   const [maskVideoLabel, setMaskVideoLabel] = useState("");
   const [maskVideoDuration, setMaskVideoDuration] = useState(0);
   const [maskStrength, setMaskStrength] = useState(1);
@@ -273,6 +275,7 @@ function App() {
     setVideoDuration(0);
     setVideoTime(0);
     setVideoCompositeOriginal(false);
+    setVideoBlendMode("normal");
   };
 
   const captureMaskFrame = () => {
@@ -788,7 +791,10 @@ function App() {
     const canvas = previewCanvas.current;
     if (!canvas) return;
     const exportCanvas = isVideoComposite && originalUnderlayCanvas.current
-      ? composeCanvasLayers(originalUnderlayCanvas.current, canvas, videoOriginalOpacity)
+      ? composeCanvasStack([
+          { canvas: originalUnderlayCanvas.current, opacity: videoOriginalOpacity, blendMode: "normal" },
+          { canvas, blendMode: videoBlendMode },
+        ])
       : canvas;
     const ext = exportFormat === "webp" ? "webp" : "png";
     const compositeSuffix = isVideoComposite ? "-composite" : "";
@@ -939,7 +945,7 @@ function App() {
           {rendererMode === "original" ? (
             <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} />
           ) : isVideoComposite ? (
-            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={videoOriginalOpacity} positions={previewPositions} colors={previewColors} mode={rendererMode} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
+            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={videoOriginalOpacity} transformedBlendMode={videoBlendMode} positions={previewPositions} colors={previewColors} mode={rendererMode} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           ) : (
             <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           )}
@@ -955,11 +961,33 @@ function App() {
       </section>
 
       <aside className="inspector-panel">
+        {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel
+          disabled={animationExporting}
+          originalVisible={videoCompositeOriginal}
+          originalOpacity={videoOriginalOpacity}
+          transformedBlendMode={videoBlendMode}
+          labels={{
+            title: t("layer.title"),
+            summary: t("layer.videoComposition"),
+            original: t("layer.original"),
+            transformed: t("layer.transformed"),
+            originalToggle: t("video.compositeOriginal"),
+            originalOpacity: t("video.originalOpacity"),
+            opacity: t("layer.opacity"),
+            blend: t("layer.blend"),
+            normal: t("layer.normal"),
+            multiply: t("layer.multiply"),
+            screen: t("layer.screen"),
+          }}
+          onOriginalVisibleChange={setVideoCompositeOriginal}
+          onOriginalOpacityChange={setVideoOriginalOpacity}
+          onTransformedBlendModeChange={setVideoBlendMode}
+        />}
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
           {rendererMode !== "original" && <><label>{t("inspector.density")}<div className="range-row"><input type="range" min="5" max="100" value={density} disabled={animationExporting} onChange={(e) => setDensity(Number(e.target.value))} /><output>{density}%</output></div></label><label>{t("inspector.size")}<div className="range-row"><input type="range" min="40" max="240" value={Math.round(elementSize * 100)} disabled={animationExporting} onChange={(e) => setElementSize(Number(e.target.value) / 100)} /><output>{Math.round(elementSize * 100)}%</output></div></label><label>{t("inspector.edgeEmphasis")}<div className="range-row"><input type="range" min="0" max="100" value={edgeWeight} disabled={animationExporting || isProceduralSource} onChange={(e) => setEdgeWeight(Number(e.target.value))} /><output>{edgeWeight}%</output></div></label><label>{t("inspector.dither")}<div className="range-row"><input type="range" min="0" max="100" value={ditherStrength} disabled={animationExporting || isProceduralSource} onChange={(e) => setDitherStrength(Number(e.target.value))} /><output>{ditherStrength}%</output></div></label><label>{t("inspector.renderColor")}<div className="color-row"><input type="color" value={tint} disabled={animationExporting} onChange={(e) => setTint(e.target.value)} /><code>{tint}</code></div></label><div className="toggle-row"><span>{t("inspector.sourceColor")}</span><button disabled={animationExporting} className={`toggle ${useSourceColor ? "on" : ""}`} aria-pressed={useSourceColor} onClick={() => setUseSourceColor((v) => !v)} /></div></>}
-          {isVideoSource && rendererMode !== "original" && <><div className="toggle-row"><span>{t("video.compositeOriginal")}</span><button aria-label={t("video.compositeOriginal")} disabled={animationExporting} className={`toggle ${videoCompositeOriginal ? "on" : ""}`} aria-pressed={videoCompositeOriginal} onClick={() => setVideoCompositeOriginal((value) => !value)} /></div>{videoCompositeOriginal && <label>{t("video.originalOpacity")}<div className="range-row"><input aria-label={t("video.originalOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacity * 100)} disabled={animationExporting} onChange={(e) => setVideoOriginalOpacity(Number(e.target.value) / 100)} /><output>{Math.round(videoOriginalOpacity * 100)}%</output></div></label>}{hasVideoMask && <><label>{t("video.maskStrength")}<div className="range-row"><input aria-label={t("video.maskStrength")} type="range" min="0" max="100" value={Math.round(maskStrength * 100)} disabled={animationExporting} onChange={(e) => setMaskStrength(Number(e.target.value) / 100)} /><output>{Math.round(maskStrength * 100)}%</output></div></label><div className="toggle-row"><span>{t("video.maskInvert")}</span><button aria-label={t("video.maskInvert")} disabled={animationExporting} className={`toggle ${maskInvert ? "on" : ""}`} aria-pressed={maskInvert} onClick={() => setMaskInvert((value) => !value)} /></div></>}{hasVideoAnalysis && <><label>{t("video.analysisStrength")}<div className="range-row"><input aria-label={t("video.analysisStrength")} type="range" min="0" max="100" value={Math.round(analysisStrength * 100)} disabled={animationExporting} onChange={(e) => setAnalysisStrength(Number(e.target.value) / 100)} /><output>{Math.round(analysisStrength * 100)}%</output></div></label><label>{t("video.analysisValue")}<code>{Math.round((analysisValue ?? 0) * 100)}%</code></label></>}</>}
+          {isVideoSource && rendererMode !== "original" && <>{hasVideoMask && <><label>{t("video.maskStrength")}<div className="range-row"><input aria-label={t("video.maskStrength")} type="range" min="0" max="100" value={Math.round(maskStrength * 100)} disabled={animationExporting} onChange={(e) => setMaskStrength(Number(e.target.value) / 100)} /><output>{Math.round(maskStrength * 100)}%</output></div></label><div className="toggle-row"><span>{t("video.maskInvert")}</span><button aria-label={t("video.maskInvert")} disabled={animationExporting} className={`toggle ${maskInvert ? "on" : ""}`} aria-pressed={maskInvert} onClick={() => setMaskInvert((value) => !value)} /></div></>}{hasVideoAnalysis && <><label>{t("video.analysisStrength")}<div className="range-row"><input aria-label={t("video.analysisStrength")} type="range" min="0" max="100" value={Math.round(analysisStrength * 100)} disabled={animationExporting} onChange={(e) => setAnalysisStrength(Number(e.target.value) / 100)} /><output>{Math.round(analysisStrength * 100)}%</output></div></label><label>{t("video.analysisValue")}<code>{Math.round((analysisValue ?? 0) * 100)}%</code></label></>}</>}
           <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
