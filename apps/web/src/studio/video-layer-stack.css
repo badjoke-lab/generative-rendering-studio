@@ -44,6 +44,10 @@
   background: rgba(255, 255, 255, 0.025);
 }
 
+.stage5-layer-row[data-layer-id="video-transformed"] {
+  grid-template-columns: 28px minmax(86px, 1fr) minmax(126px, 1.45fr);
+}
+
 .stage5-layer-row select,
 .stage5-layer-row input[type="range"] {
   min-width: 0;
@@ -116,5 +120,9 @@ button.stage5-layer-visibility {
     grid-template-columns: 28px minmax(76px, 1fr) minmax(86px, 1.2fr) 38px;
     gap: 6px;
     padding: 8px;
+  }
+
+  .stage5-layer-row[data-layer-id="video-transformed"] {
+    grid-template-columns: 28px minmax(76px, 1fr) minmax(112px, 1.35fr);
   }
 }
