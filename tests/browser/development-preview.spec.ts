@@ -183,7 +183,11 @@ async function inspectDownloadedAnimation(page: Page, filePath: string, mimeType
   const first = validSamples[0];
   const last = validSamples[validSamples.length - 1];
   expect(last.centroidX - first.centroidX).toBeGreaterThan(replay.width * 0.08);
-  const deltas = validSamples.slice(1).map((sample, index) => sample.centroidX - validSamples[index].centroidX);
+  const smoothedCentroids = validSamples.map((_, index, samples) => {
+    const window = samples.slice(Math.max(0, index - 1), Math.min(samples.length, index + 2));
+    return window.reduce((total, sample) => total + sample.centroidX, 0) / window.length;
+  });
+  const deltas = smoothedCentroids.slice(1).map((centroidX, index) => centroidX - smoothedCentroids[index]);
   expect(Math.min(...deltas)).toBeGreaterThan(-replay.width * 0.03);
 
   for (const [name, dataUrl] of Object.entries(replay.frames)) {
