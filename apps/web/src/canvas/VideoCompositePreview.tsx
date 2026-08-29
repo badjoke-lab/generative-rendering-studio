@@ -15,6 +15,7 @@ export function VideoCompositePreview({
   transformedCanvasRef,
   raster,
   originalOpacity,
+  transformedBlendMode = "normal",
   positions,
   colors,
   mode,
@@ -28,6 +29,7 @@ export function VideoCompositePreview({
   transformedCanvasRef: RefObject<HTMLCanvasElement | null>;
   raster?: RasterPixels;
   originalOpacity: number;
+  transformedBlendMode?: "normal" | "multiply" | "screen";
   positions?: Float32Array;
   colors?: Float32Array;
   mode: PreviewRendererMode;
@@ -41,6 +43,7 @@ export function VideoCompositePreview({
     <div
       className="video-composite-preview"
       data-video-composite="true"
+      data-video-blend-mode={transformedBlendMode}
       style={{ position: "absolute", inset: 0, overflow: "hidden" }}
     >
       <div
@@ -49,7 +52,10 @@ export function VideoCompositePreview({
       >
         <OriginalPreview canvasRef={originalCanvasRef} raster={raster} background={background} />
       </div>
-      <div className="video-composite-overlay" style={layerStyle}>
+      <div
+        className="video-composite-overlay"
+        style={{ ...layerStyle, mixBlendMode: transformedBlendMode }}
+      >
         <WebGLPreview
           canvasRef={transformedCanvasRef}
           positions={positions}
