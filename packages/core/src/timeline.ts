@@ -13,7 +13,13 @@ export interface LayerOpacityTrack {
   readonly keyframes: readonly NumericKeyframe[];
 }
 
-export type TimelineTrack = LayerOpacityTrack;
+export interface MotionStrengthTrack {
+  readonly id: string;
+  readonly kind: "motion-strength";
+  readonly keyframes: readonly NumericKeyframe[];
+}
+
+export type TimelineTrack = LayerOpacityTrack | MotionStrengthTrack;
 
 export interface StudioTimeline {
   readonly duration: number;
@@ -29,6 +35,11 @@ function clampTime(value: number): number {
 function clampUnit(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function clampMotionStrength(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(2, Math.max(0, value));
 }
 
 function normalizeDuration(value: number): number {
@@ -118,6 +129,24 @@ export function createLayerOpacityTrack(
 export function sampleLayerOpacityTrack(track: LayerOpacityTrack, time: number): number | null {
   const sampled = sampleNumericKeyframes(track.keyframes, time);
   return sampled === null ? null : clampUnit(sampled);
+}
+
+export function createMotionStrengthTrack(
+  id: string,
+  keyframes: readonly NumericKeyframe[] = [],
+): MotionStrengthTrack {
+  return {
+    id,
+    kind: "motion-strength",
+    keyframes: normalizeNumericKeyframes(
+      keyframes.map((keyframe) => ({ ...keyframe, value: clampMotionStrength(keyframe.value) })),
+    ),
+  };
+}
+
+export function sampleMotionStrengthTrack(track: MotionStrengthTrack, time: number): number | null {
+  const sampled = sampleNumericKeyframes(track.keyframes, time);
+  return sampled === null ? null : clampMotionStrength(sampled);
 }
 
 export function createStudioTimeline(
