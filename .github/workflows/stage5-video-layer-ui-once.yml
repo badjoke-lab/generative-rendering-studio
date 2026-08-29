@@ -62,29 +62,31 @@ jobs:
           )
 
           inspector_anchor = '      <aside className="inspector-panel">\n        <section className="inspector-section guided-section">'
-          inspector_insert = '''      <aside className="inspector-panel">
-        {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel
-          disabled={animationExporting}
-          originalVisible={videoCompositeOriginal}
-          originalOpacity={videoOriginalOpacity}
-          transformedBlendMode={videoBlendMode}
-          labels={{
-            title: t("layer.title"),
-            summary: t("layer.videoComposition"),
-            original: t("layer.original"),
-            transformed: t("layer.transformed"),
-            visible: t("layer.visible"),
-            opacity: t("layer.opacity"),
-            blend: t("layer.blend"),
-            normal: t("layer.normal"),
-            multiply: t("layer.multiply"),
-            screen: t("layer.screen"),
-          }}
-          onOriginalVisibleChange={setVideoCompositeOriginal}
-          onOriginalOpacityChange={setVideoOriginalOpacity}
-          onTransformedBlendModeChange={setVideoBlendMode}
-        />}
-        <section className="inspector-section guided-section">'''
+          inspector_insert = chr(10).join([
+              '      <aside className="inspector-panel">',
+              '        {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel',
+              '          disabled={animationExporting}',
+              '          originalVisible={videoCompositeOriginal}',
+              '          originalOpacity={videoOriginalOpacity}',
+              '          transformedBlendMode={videoBlendMode}',
+              '          labels={{',
+              '            title: t("layer.title"),',
+              '            summary: t("layer.videoComposition"),',
+              '            original: t("layer.original"),',
+              '            transformed: t("layer.transformed"),',
+              '            visible: t("layer.visible"),',
+              '            opacity: t("layer.opacity"),',
+              '            blend: t("layer.blend"),',
+              '            normal: t("layer.normal"),',
+              '            multiply: t("layer.multiply"),',
+              '            screen: t("layer.screen"),',
+              '          }}',
+              '          onOriginalVisibleChange={setVideoCompositeOriginal}',
+              '          onOriginalOpacityChange={setVideoOriginalOpacity}',
+              '          onTransformedBlendModeChange={setVideoBlendMode}',
+              '        />}',
+              '        <section className="inspector-section guided-section">',
+          ])
           replace_once(main, inspector_anchor, inspector_insert, 'layer panel insertion')
 
           p = Path(main)
@@ -97,38 +99,33 @@ jobs:
               raise SystemExit(f'legacy video composite controls: expected 1 match, found {count}')
           p.write_text(text)
 
-          en = 'apps/web/src/i18n/locales/en.ts'
-          replace_once(
-              en,
+          en_insert = chr(10).join([
               '  "layer.mainRender": "Main Render",',
-              '''  "layer.mainRender": "Main Render",
-  "layer.videoComposition": "Video composition",
-  "layer.original": "Original",
-  "layer.transformed": "Transformed",
-  "layer.visible": "Visibility",
-  "layer.opacity": "Opacity",
-  "layer.blend": "Blend mode",
-  "layer.normal": "Normal",
-  "layer.multiply": "Multiply",
-  "layer.screen": "Screen",''',
-              'EN layer keys',
-          )
-          ja = 'apps/web/src/i18n/locales/ja.ts'
-          replace_once(
-              ja,
+              '  "layer.videoComposition": "Video composition",',
+              '  "layer.original": "Original",',
+              '  "layer.transformed": "Transformed",',
+              '  "layer.visible": "Visibility",',
+              '  "layer.opacity": "Opacity",',
+              '  "layer.blend": "Blend mode",',
+              '  "layer.normal": "Normal",',
+              '  "layer.multiply": "Multiply",',
+              '  "layer.screen": "Screen",',
+          ])
+          replace_once('apps/web/src/i18n/locales/en.ts', '  "layer.mainRender": "Main Render",', en_insert, 'EN layer keys')
+
+          ja_insert = chr(10).join([
               '  "layer.mainRender": "メインレンダー",',
-              '''  "layer.mainRender": "メインレンダー",
-  "layer.videoComposition": "動画の2レイヤー合成",
-  "layer.original": "元動画",
-  "layer.transformed": "変換レイヤー",
-  "layer.visible": "表示",
-  "layer.opacity": "不透明度",
-  "layer.blend": "合成モード",
-  "layer.normal": "通常",
-  "layer.multiply": "乗算",
-  "layer.screen": "スクリーン",''',
-              'JA layer keys',
-          )
+              '  "layer.videoComposition": "動画の2レイヤー合成",',
+              '  "layer.original": "元動画",',
+              '  "layer.transformed": "変換レイヤー",',
+              '  "layer.visible": "表示",',
+              '  "layer.opacity": "不透明度",',
+              '  "layer.blend": "合成モード",',
+              '  "layer.normal": "通常",',
+              '  "layer.multiply": "乗算",',
+              '  "layer.screen": "スクリーン",',
+          ])
+          replace_once('apps/web/src/i18n/locales/ja.ts', '  "layer.mainRender": "メインレンダー",', ja_insert, 'JA layer keys')
           PY
       - name: Remove one-shot workflow
         run: rm .github/workflows/stage5-video-layer-ui-once.yml
