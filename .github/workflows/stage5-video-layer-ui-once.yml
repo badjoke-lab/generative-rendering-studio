@@ -2,69 +2,63 @@ name: stage5-video-layer-ui-once
 
 on:
   push:
-    branches:
-      - stage5/video-layer-ui
+    paths:
+      - .github/workflows/stage5-video-layer-ui-once.yml
 
 permissions:
   contents: write
 
 jobs:
-  wire:
+  integrate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: stage5/video-layer-ui
-          fetch-depth: 0
       - name: Wire layer controls, blend preview/export, and translations
-        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"{label}: expected exactly one match, got {count}")
-              return text.replace(old, new, 1)
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              p.write_text(text.replace(old, new, 1))
 
-          main_path = Path("apps/web/src/main.tsx")
-          main = main_path.read_text()
-
-          main = replace_once(
+          main = 'apps/web/src/main.tsx'
+          replace_once(
               main,
               'import { VideoCompositePreview } from "./canvas/VideoCompositePreview";\nimport { composeCanvasLayers } from "./export/composeCanvasLayers";',
               'import { VideoCompositePreview } from "./canvas/VideoCompositePreview";\nimport { composeCanvasStack } from "./export/composeCanvasLayers";\nimport { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";',
-              "main imports",
+              'main imports',
           )
-
-          main = replace_once(
+          replace_once(
               main,
               '  const [videoCompositeOriginal, setVideoCompositeOriginal] = useState(false);\n  const [videoOriginalOpacity, setVideoOriginalOpacity] = useState(0.55);',
               '  const [videoCompositeOriginal, setVideoCompositeOriginal] = useState(false);\n  const [videoOriginalOpacity, setVideoOriginalOpacity] = useState(0.55);\n  const [videoBlendMode, setVideoBlendMode] = useState<VideoLayerBlendMode>("normal");',
-              "video layer state",
+              'video layer state',
           )
-
-          main = replace_once(
+          replace_once(
               main,
               '    setVideoTime(0);\n    setVideoCompositeOriginal(false);',
               '    setVideoTime(0);\n    setVideoCompositeOriginal(false);\n    setVideoBlendMode("normal");',
-              "video layer reset",
+              'video layer reset',
           )
-
-          main = replace_once(
+          replace_once(
               main,
               '    const exportCanvas = isVideoComposite && originalUnderlayCanvas.current\n      ? composeCanvasLayers(originalUnderlayCanvas.current, canvas, videoOriginalOpacity)\n      : canvas;',
               '    const exportCanvas = isVideoComposite && originalUnderlayCanvas.current\n      ? composeCanvasStack([\n          { canvas: originalUnderlayCanvas.current, opacity: videoOriginalOpacity, blendMode: "normal" },\n          { canvas, blendMode: videoBlendMode },\n        ])\n      : canvas;',
-              "layer-aware still export",
+              'layer-aware still export',
           )
-
-          main = replace_once(
+          replace_once(
               main,
               'originalOpacity={videoOriginalOpacity} positions={previewPositions}',
               'originalOpacity={videoOriginalOpacity} transformedBlendMode={videoBlendMode} positions={previewPositions}',
-              "composite preview blend prop",
+              'composite preview blend prop',
           )
 
           inspector_anchor = '      <aside className="inspector-panel">\n        <section className="inspector-section guided-section">'
@@ -91,24 +85,20 @@ jobs:
           onTransformedBlendModeChange={setVideoBlendMode}
         />}
         <section className="inspector-section guided-section">'''
-          main = replace_once(main, inspector_anchor, inspector_insert, "layer panel insertion")
+          replace_once(main, inspector_anchor, inspector_insert, 'layer panel insertion')
 
-          composite_pattern = re.compile(
+          p = Path(main)
+          text = p.read_text()
+          pattern = re.compile(
               r'\{isVideoSource && rendererMode !== "original" && <><div className="toggle-row"><span>\{t\("video\.compositeOriginal"\)\}</span><button aria-label=\{t\("video\.compositeOriginal"\)\} disabled=\{animationExporting\} className=\{`toggle \$\{videoCompositeOriginal \? "on" : ""\}`\} aria-pressed=\{videoCompositeOriginal\} onClick=\{\(\) => setVideoCompositeOriginal\(\(value\) => !value\)\} /></div>\{videoCompositeOriginal && <label>\{t\("video\.originalOpacity"\)\}<div className="range-row"><input aria-label=\{t\("video\.originalOpacity"\)\} type="range" min="0" max="100" value=\{Math\.round\(videoOriginalOpacity \* 100\)\} disabled=\{animationExporting\} onChange=\{\(e\) => setVideoOriginalOpacity\(Number\(e\.target\.value\) / 100\)\} /><output>\{Math\.round\(videoOriginalOpacity \* 100\)\}%</output></div></label>\}\{hasVideoMask &&'
           )
-          main, count = composite_pattern.subn(
-              '{isVideoSource && rendererMode !== "original" && <>{hasVideoMask &&',
-              main,
-              count=1,
-          )
+          text, count = pattern.subn('{isVideoSource && rendererMode !== "original" && <>{hasVideoMask &&', text, count=1)
           if count != 1:
-              raise SystemExit(f"legacy video composite controls: expected exactly one match, got {count}")
+              raise SystemExit(f'legacy video composite controls: expected 1 match, found {count}')
+          p.write_text(text)
 
-          main_path.write_text(main)
-
-          en_path = Path("apps/web/src/i18n/locales/en.ts")
-          en = en_path.read_text()
-          en = replace_once(
+          en = 'apps/web/src/i18n/locales/en.ts'
+          replace_once(
               en,
               '  "layer.mainRender": "Main Render",',
               '''  "layer.mainRender": "Main Render",
@@ -121,13 +111,10 @@ jobs:
   "layer.normal": "Normal",
   "layer.multiply": "Multiply",
   "layer.screen": "Screen",''',
-              "English layer translations",
+              'EN layer keys',
           )
-          en_path.write_text(en)
-
-          ja_path = Path("apps/web/src/i18n/locales/ja.ts")
-          ja = ja_path.read_text()
-          ja = replace_once(
+          ja = 'apps/web/src/i18n/locales/ja.ts'
+          replace_once(
               ja,
               '  "layer.mainRender": "メインレンダー",',
               '''  "layer.mainRender": "メインレンダー",
@@ -140,13 +127,12 @@ jobs:
   "layer.normal": "通常",
   "layer.multiply": "乗算",
   "layer.screen": "スクリーン",''',
-              "Japanese layer translations",
+              'JA layer keys',
           )
-          ja_path.write_text(ja)
           PY
       - name: Remove one-shot workflow
         run: rm .github/workflows/stage5-video-layer-ui-once.yml
-      - name: Commit wired Stage 5 layer UI
+      - name: Commit layer integration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
