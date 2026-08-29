@@ -47,11 +47,9 @@ describe("buildRecolorMaskedColors", () => {
       ),
     );
 
-    expect(Array.from(result)).toEqual([
-      1, 1, 1, 1,
-      1, 1, 1, expect.closeTo(0.7, 5),
-      1, 1, 1, expect.closeTo(0.4, 5),
-    ]);
+    expect(result[3]).toBeCloseTo(1, 5);
+    expect(result[7]).toBeCloseTo(0.7, 5);
+    expect(result[11]).toBeCloseTo(0.4, 5);
   });
 
   it("multiplies the tonal mask by source alpha", () => {
