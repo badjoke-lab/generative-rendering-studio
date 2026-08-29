@@ -50,6 +50,16 @@
   width: 100%;
 }
 
+.stage5-layer-stack .stage5-layer-row select {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background-color: #151922;
+  color: #eef0f7;
+  color-scheme: dark;
+}
+
 .stage5-layer-row output {
   text-align: right;
   font-size: 11px;
