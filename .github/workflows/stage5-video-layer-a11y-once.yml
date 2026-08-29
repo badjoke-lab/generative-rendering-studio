@@ -1,0 +1,39 @@
+name: stage5-video-layer-a11y-once
+
+on:
+  push:
+    paths:
+      - .github/workflows/stage5-video-layer-a11y-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage5/video-layer-ui
+      - name: Preserve existing video control accessibility names
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps/web/src/main.tsx')
+          text = p.read_text()
+          old = '            original: t("layer.original"),\n            transformed: t("layer.transformed"),\n            visible: t("layer.visible"),\n            opacity: t("layer.opacity"),'
+          new = '            original: t("layer.original"),\n            transformed: t("layer.transformed"),\n            originalToggle: t("video.compositeOriginal"),\n            originalOpacity: t("video.originalOpacity"),\n            opacity: t("layer.opacity"),'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'layer labels: expected 1 match, found {count}')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/stage5-video-layer-a11y-once.yml
+      - name: Commit compatibility labels
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx .github/workflows/stage5-video-layer-a11y-once.yml
+          git commit -m "Stage 5: preserve video layer control labels"
+          git push origin HEAD:stage5/video-layer-ui
