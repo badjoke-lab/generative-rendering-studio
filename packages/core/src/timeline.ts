@@ -19,7 +19,23 @@ export interface MotionStrengthTrack {
   readonly keyframes: readonly NumericKeyframe[];
 }
 
-export type TimelineTrack = LayerOpacityTrack | MotionStrengthTrack;
+export interface CameraTrack {
+  readonly id: string;
+  readonly kind: "camera";
+  readonly panX: readonly NumericKeyframe[];
+  readonly panY: readonly NumericKeyframe[];
+  readonly zoom: readonly NumericKeyframe[];
+  readonly rotation: readonly NumericKeyframe[];
+}
+
+export interface CameraSample {
+  readonly panX: number;
+  readonly panY: number;
+  readonly zoom: number;
+  readonly rotation: number;
+}
+
+export type TimelineTrack = LayerOpacityTrack | MotionStrengthTrack | CameraTrack;
 
 export interface StudioTimeline {
   readonly duration: number;
@@ -40,6 +56,21 @@ function clampUnit(value: number): number {
 function clampMotionStrength(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(2, Math.max(0, value));
+}
+
+function clampCameraPan(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(-1, value));
+}
+
+function clampCameraZoom(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(3, Math.max(0.25, value));
+}
+
+function clampCameraRotation(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(180, Math.max(-180, value));
 }
 
 function normalizeDuration(value: number): number {
@@ -147,6 +178,37 @@ export function createMotionStrengthTrack(
 export function sampleMotionStrengthTrack(track: MotionStrengthTrack, time: number): number | null {
   const sampled = sampleNumericKeyframes(track.keyframes, time);
   return sampled === null ? null : clampMotionStrength(sampled);
+}
+
+export function createCameraTrack(
+  id: string,
+  channels: {
+    readonly panX?: readonly NumericKeyframe[];
+    readonly panY?: readonly NumericKeyframe[];
+    readonly zoom?: readonly NumericKeyframe[];
+    readonly rotation?: readonly NumericKeyframe[];
+  } = {},
+): CameraTrack {
+  const normalize = (keyframes: readonly NumericKeyframe[] | undefined, clamp: (value: number) => number) =>
+    normalizeNumericKeyframes((keyframes ?? []).map((keyframe) => ({ ...keyframe, value: clamp(keyframe.value) })));
+  return {
+    id,
+    kind: "camera",
+    panX: normalize(channels.panX, clampCameraPan),
+    panY: normalize(channels.panY, clampCameraPan),
+    zoom: normalize(channels.zoom, clampCameraZoom),
+    rotation: normalize(channels.rotation, clampCameraRotation),
+  };
+}
+
+export function sampleCameraTrack(track: CameraTrack, time: number): CameraSample | null {
+  if (track.panX.length + track.panY.length + track.zoom.length + track.rotation.length === 0) return null;
+  return {
+    panX: clampCameraPan(sampleNumericKeyframes(track.panX, time) ?? 0),
+    panY: clampCameraPan(sampleNumericKeyframes(track.panY, time) ?? 0),
+    zoom: clampCameraZoom(sampleNumericKeyframes(track.zoom, time) ?? 1),
+    rotation: clampCameraRotation(sampleNumericKeyframes(track.rotation, time) ?? 0),
+  };
 }
 
 export function createStudioTimeline(
