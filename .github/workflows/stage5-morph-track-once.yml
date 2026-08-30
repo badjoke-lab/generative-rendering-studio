@@ -14,6 +14,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: stage5/morph-track
+      - name: Fix locale matcher
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/stage5_morph_track_once.py")
+          text = path.read_text().replace('"timeline.motionStrength": "Motion strength"', '"timeline.motionStrength": "Motion Strength"')
+          path.write_text(text)
+          PY
       - name: Apply Morph Track integration
         run: python scripts/stage5_morph_track_once.py
       - name: Remove one-shot files and commit implementation
