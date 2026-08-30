@@ -7,11 +7,13 @@ import {
   applyMorphEasing,
   applyRasterMaskToPointField,
   applyRasterTextureToPointField,
+  createLayerOpacityTrack,
   createMorphMapping,
   createMotionStrengthTrack,
   createNumericKeyframe,
   morphMappingToFloat32,
   pointFieldToFloat32,
+  sampleLayerOpacityTrack,
   sampleMotionStrengthTrack,
   sampleRasterToPointField,
   type KeyframeEasing,
@@ -174,6 +176,10 @@ function App() {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoCompositeOriginal, setVideoCompositeOriginal] = useState(false);
   const [videoOriginalOpacity, setVideoOriginalOpacity] = useState(0.55);
+  const [videoOriginalOpacityKeyframesEnabled, setVideoOriginalOpacityKeyframesEnabled] = useState(false);
+  const [videoOriginalOpacityStart, setVideoOriginalOpacityStart] = useState(0.15);
+  const [videoOriginalOpacityEnd, setVideoOriginalOpacityEnd] = useState(0.85);
+  const [videoOriginalOpacityEasing, setVideoOriginalOpacityEasing] = useState<KeyframeEasing>("ease-in-out");
   const [videoBlendMode, setVideoBlendMode] = useState<VideoLayerBlendMode>("normal");
   const [maskVideoLabel, setMaskVideoLabel] = useState("");
   const [maskVideoDuration, setMaskVideoDuration] = useState(0);
@@ -289,6 +295,7 @@ function App() {
     setVideoDuration(0);
     setVideoTime(0);
     setVideoCompositeOriginal(false);
+    setVideoOriginalOpacityKeyframesEnabled(false);
     setVideoBlendMode("normal");
   };
 
@@ -503,6 +510,18 @@ function App() {
   const hasVideoAnalysis = isVideoSource && Boolean(analysisVideoLabel) && analysisValue !== null;
   const effectiveElementSize = elementSize * (hasVideoAnalysis ? analysisValueToSizeScale(analysisValue ?? 0.5, analysisStrength) : 1);
   const videoRoleSuffix = `${hasVideoTexture ? ` · ${t("preview.videoTextured")}` : ""}${hasVideoMask ? ` · ${t("preview.videoMasked")}` : ""}${hasVideoAnalysis ? ` · ${t("preview.videoAnalyzed")}` : ""}`;
+  const videoOriginalOpacityTrack = useMemo(
+    () => createLayerOpacityTrack("video-original-opacity", "video-original", [
+      createNumericKeyframe(0, videoOriginalOpacityStart, videoOriginalOpacityEasing),
+      createNumericKeyframe(Math.max(0.001, videoDuration), videoOriginalOpacityEnd),
+    ]),
+    [videoDuration, videoOriginalOpacityEasing, videoOriginalOpacityEnd, videoOriginalOpacityStart],
+  );
+  const videoOriginalOpacityAutomationActive =
+    isVideoComposite && videoOriginalOpacityKeyframesEnabled && videoDuration > 0;
+  const effectiveVideoOriginalOpacity = videoOriginalOpacityAutomationActive
+    ? sampleLayerOpacityTrack(videoOriginalOpacityTrack, videoTime) ?? videoOriginalOpacity
+    : videoOriginalOpacity;
   const motionStrengthTrack = useMemo(
     () => createMotionStrengthTrack("motion-strength", [
       createNumericKeyframe(0, motionStrengthStart, motionKeyframeEasing),
@@ -831,7 +850,7 @@ function App() {
     if (!canvas) return;
     const exportCanvas = isVideoComposite && originalUnderlayCanvas.current
       ? composeCanvasStack([
-          { canvas: originalUnderlayCanvas.current, opacity: videoOriginalOpacity, blendMode: "normal" },
+          { canvas: originalUnderlayCanvas.current, opacity: effectiveVideoOriginalOpacity, blendMode: "normal" },
           { canvas, blendMode: videoBlendMode },
         ])
       : canvas;
@@ -1038,7 +1057,7 @@ function App() {
           {rendererMode === "original" ? (
             <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} />
           ) : isVideoComposite ? (
-            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={videoOriginalOpacity} transformedBlendMode={videoBlendMode} positions={previewPositions} colors={previewColors} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
+            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={effectiveVideoOriginalOpacity} transformedBlendMode={videoBlendMode} positions={previewPositions} colors={previewColors} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           ) : (
             <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           )}
@@ -1057,7 +1076,8 @@ function App() {
         {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel
           disabled={animationExporting}
           originalVisible={videoCompositeOriginal}
-          originalOpacity={videoOriginalOpacity}
+          originalOpacity={effectiveVideoOriginalOpacity}
+          originalOpacityDisabled={videoOriginalOpacityKeyframesEnabled}
           transformedBlendMode={videoBlendMode}
           labels={{
             title: t("layer.title"),
@@ -1076,6 +1096,17 @@ function App() {
           onOriginalOpacityChange={setVideoOriginalOpacity}
           onTransformedBlendModeChange={setVideoBlendMode}
         />}
+        {isVideoSource && rendererMode !== "original" && videoCompositeOriginal && <section className="inspector-section" data-stage5-layer-opacity-keyframes="true">
+          <h2>{t("timeline.layerOpacity")}</h2>
+          <p>{t("timeline.layerOpacityHint")}</p>
+          <div className="toggle-row"><span>{t("timeline.layerOpacityAnimate")}</span><button aria-label={t("timeline.layerOpacityToggle")} disabled={animationExporting || videoDuration <= 0} className={`toggle ${videoOriginalOpacityKeyframesEnabled ? "on" : ""}`} aria-pressed={videoOriginalOpacityKeyframesEnabled} onClick={() => setVideoOriginalOpacityKeyframesEnabled((value) => !value)} /></div>
+          {videoOriginalOpacityKeyframesEnabled && <>
+            <label>{t("timeline.startOpacity")}<div className="range-row"><input aria-label={t("timeline.startOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityStart * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityStart(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityStart * 100)}%</output></div></label>
+            <label>{t("timeline.endOpacity")}<div className="range-row"><input aria-label={t("timeline.endOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityEnd * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityEnd(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityEnd * 100)}%</output></div></label>
+            <label>{t("timeline.layerOpacityEasing")}<select aria-label={t("timeline.layerOpacityEasing")} value={videoOriginalOpacityEasing} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityEasing(event.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label>
+            <label>{t("timeline.currentOpacity")}<code>{Math.round(effectiveVideoOriginalOpacity * 100)}%</code></label>
+          </>}
+        </section>}
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}

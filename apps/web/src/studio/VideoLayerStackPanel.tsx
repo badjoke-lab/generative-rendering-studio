@@ -21,6 +21,7 @@ export function VideoLayerStackPanel({
   disabled,
   originalVisible,
   originalOpacity,
+  originalOpacityDisabled = false,
   transformedBlendMode,
   labels,
   onOriginalVisibleChange,
@@ -30,6 +31,7 @@ export function VideoLayerStackPanel({
   disabled?: boolean;
   originalVisible: boolean;
   originalOpacity: number;
+  originalOpacityDisabled?: boolean;
   transformedBlendMode: VideoLayerBlendMode;
   labels: VideoLayerStackLabels;
   onOriginalVisibleChange: (visible: boolean) => void;
@@ -67,7 +69,7 @@ export function VideoLayerStackPanel({
           min="0"
           max="100"
           value={Math.round(originalOpacity * 100)}
-          disabled={disabled || !originalVisible}
+          disabled={disabled || originalOpacityDisabled || !originalVisible}
           onChange={(event) => onOriginalOpacityChange(Number(event.target.value) / 100)}
         />
         <output>{Math.round(originalOpacity * 100)}%</output>
