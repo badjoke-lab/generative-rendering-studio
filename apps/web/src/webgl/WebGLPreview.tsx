@@ -356,5 +356,5 @@ export function WebGLPreview({
   }, [background, canvasRef, colors, elementSize, glyphPreset, mode, motionMode, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
-  return <canvas ref={canvasRef} className="preview-canvas" data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
+  return <canvas ref={canvasRef} className="preview-canvas" data-morph-progress={morphProgress.toFixed(3)} data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
 }

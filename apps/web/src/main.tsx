@@ -10,12 +10,14 @@ import {
   createCameraTrack,
   createLayerOpacityTrack,
   createMorphMapping,
+  createMorphProgressTrack,
   createMotionStrengthTrack,
   createNumericKeyframe,
   morphMappingToFloat32,
   pointFieldToFloat32,
   sampleCameraTrack,
   sampleLayerOpacityTrack,
+  sampleMorphProgressTrack,
   sampleMotionStrengthTrack,
   sampleRasterToPointField,
   type KeyframeEasing,
@@ -518,7 +520,6 @@ function App() {
     return morphMappingToFloat32(createMorphMapping(densityAdjustedField, morphField));
   }, [densityAdjustedField, morphField]);
 
-  const easedProgress = applyMorphEasing(morphProgress, morphEasing);
   const activeMorph = morphEnabled && morphPacked ? morphPacked : undefined;
   const previewPositions = activeMorph?.fromPositions ?? basePacked?.positions;
   const previewColors = activeMorph?.fromColors ?? basePacked?.colors;
@@ -549,6 +550,14 @@ function App() {
     [motionDuration, motionKeyframeEasing, motionStrengthEnd, motionStrengthStart],
   );
   const motionTimelineActive = motionKeyframesEnabled && motionMode !== "static" && !isVideoSource && !morphEnabled;
+  const morphProgressTrack = useMemo(
+    () => createMorphProgressTrack("morph-main", [
+      createNumericKeyframe(0, 0),
+      createNumericKeyframe(Math.max(0.001, morphDuration), 1),
+    ]),
+    [morphDuration],
+  );
+  const morphTimelineActive = Boolean(activeMorph) && !isVideoSource;
   const cameraTrack = useMemo(
     () => createCameraTrack("camera-main", {
       panX: [createNumericKeyframe(0, cameraPanXStart, cameraKeyframeEasing), createNumericKeyframe(cameraDuration, cameraPanXEnd)],
@@ -559,8 +568,17 @@ function App() {
     [cameraDuration, cameraKeyframeEasing, cameraPanXEnd, cameraPanXStart, cameraPanYEnd, cameraPanYStart, cameraRotationEnd, cameraRotationStart, cameraZoomEnd, cameraZoomStart],
   );
   const cameraTimelineActive = cameraKeyframesEnabled && !isVideoSource && !morphEnabled;
-  const parameterTimelineActive = motionTimelineActive || cameraTimelineActive;
-  const parameterTimelineDuration = Math.max(0.001, motionTimelineActive ? motionDuration : 0, cameraTimelineActive ? cameraDuration : 0);
+  const parameterTimelineActive = motionTimelineActive || cameraTimelineActive || morphTimelineActive;
+  const parameterTimelineDuration = Math.max(
+    0.001,
+    motionTimelineActive ? motionDuration : 0,
+    cameraTimelineActive ? cameraDuration : 0,
+    morphTimelineActive ? morphDuration : 0,
+  );
+  const timelineMorphProgress = morphTimelineActive
+    ? sampleMorphProgressTrack(morphProgressTrack, motionTimelineTime) ?? morphProgress
+    : morphProgress;
+  const easedProgress = applyMorphEasing(timelineMorphProgress, morphEasing);
   const effectiveMotionStrength = motionTimelineActive
     ? sampleMotionStrengthTrack(motionStrengthTrack, motionTimelineTime) ?? motionStrength
     : motionStrength;
@@ -570,19 +588,6 @@ function App() {
   const effectiveCameraZoom = sampledCamera?.zoom ?? cameraZoom;
   const effectiveCameraRotation = sampledCamera?.rotation ?? cameraRotation;
 
-  useEffect(() => {
-    if (!morphPlaying || !morphEnabled || !morphPacked || isVideoSource) return;
-    const start = performance.now() - morphProgress * morphDuration * 1000;
-    let frame = 0;
-    const tick = (now: number) => {
-      const next = Math.min(1, (now - start) / Math.max(100, morphDuration * 1000));
-      setMorphProgress(next);
-      if (next >= 1) setMorphPlaying(false);
-      else frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [isVideoSource, morphDuration, morphEnabled, morphPacked, morphPlaying]);
 
   useEffect(() => {
     if (!motionTimelinePlaying || !parameterTimelineActive) return;
@@ -922,23 +927,24 @@ function App() {
     setAnimationExporting(true);
     setMorphPlaying(false);
     setMotionTimelinePlaying(false);
-    const animateParameterTimeline = !animateMorph && (animateCamera || (animateMotion && motionKeyframesEnabled));
+    const animateParameterTimeline = animateMorph || animateCamera || (animateMotion && motionKeyframesEnabled);
     if (animateParameterTimeline) setMotionTimelineTime(0);
     if (animateMorph) {
       setMorphEnabled(true);
       setMorphProgress(0);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
     try {
-      const durationSeconds = animateMorph ? morphDuration : animateParameterTimeline ? parameterTimelineDuration : motionDuration;
+      const durationSeconds = animateParameterTimeline
+        ? Math.max(0.001, animateMorph ? morphDuration : 0, animateCamera ? cameraDuration : 0, animateMotion && motionKeyframesEnabled ? motionDuration : 0)
+        : motionDuration;
       const result = await recordCanvasAnimation({
         canvas,
         durationSeconds,
         frameRate: 60,
-        onProgress: animateMorph
-          ? setMorphProgress
-          : animateParameterTimeline
-            ? (progress) => setMotionTimelineTime(progress * parameterTimelineDuration)
-            : () => {},
+        onProgress: animateParameterTimeline
+          ? (progress) => setMotionTimelineTime(progress * durationSeconds)
+          : () => {},
       });
       const animationKind = animateCamera
         ? animateMotion ? `${motionMode}-camera-motion` : "camera-motion"
@@ -953,7 +959,7 @@ function App() {
       setAnimationExportError(error instanceof Error && error.message === "animation-export-unsupported" ? t("export.animationUnsupported") : t("export.animationFailed"));
     } finally {
       if (animateMorph) setMorphProgress(1);
-      if (animateParameterTimeline) setMotionTimelineTime(parameterTimelineDuration);
+      if (animateParameterTimeline) setMotionTimelineTime(durationSeconds);
       setAnimationExporting(false);
     }
   };
@@ -1116,12 +1122,12 @@ function App() {
             <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} cameraPanX={effectiveCameraPanX} cameraPanY={effectiveCameraPanY} cameraZoom={effectiveCameraZoom} cameraRotation={effectiveCameraRotation} />
           )}
           <div className="canvas-status"><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
-        <div className="transport-bar" data-timeline-mode={parameterTimelineActive ? cameraTimelineActive ? motionTimelineActive ? "camera+motion" : "camera" : "motion-strength" : isVideoSource ? "video" : morphEnabled ? "morph" : "idle"}>
+        <div className="transport-bar" data-timeline-mode={parameterTimelineActive ? morphTimelineActive ? "morph-track" : cameraTimelineActive ? motionTimelineActive ? "camera+motion" : "camera" : "motion-strength" : isVideoSource ? "video" : "idle"}>
           <button aria-label={parameterTimelineActive ? t("timeline.play") : isVideoSource ? t("video.play") : t("morph.play")} disabled={!transportCanUse || transportPlaying || animationExporting} onClick={playTransport}>▶</button>
           <button aria-label={parameterTimelineActive ? t("timeline.stop") : isVideoSource ? t("video.stop") : t("morph.stop")} disabled={!transportPlaying || animationExporting} onClick={stopTransport}>■</button>
           <button aria-label={parameterTimelineActive ? t("timeline.start") : isVideoSource ? t("video.start") : "Start"} disabled={!transportCanUse || animationExporting} onClick={() => seekTransport(0)}>|◀</button>
           <button aria-label={parameterTimelineActive ? t("timeline.end") : isVideoSource ? t("video.end") : "End"} disabled={!transportCanUse || animationExporting} onClick={() => seekTransport(1)}>▶|</button>
-          <div className="transport-time">{parameterTimelineActive ? cameraTimelineActive ? motionTimelineActive ? t("timeline.cameraAndMotion") : t("timeline.camera") : t("timeline.motionStrength") : isVideoComposite ? t("preview.videoComposite") : isVideoSource ? t("preview.video") : morphEnabled ? t("preview.morph") : t("preview.stage1")}</div>
+          <div className="transport-time">{parameterTimelineActive ? morphTimelineActive ? t("timeline.morphTrack") : cameraTimelineActive ? motionTimelineActive ? t("timeline.cameraAndMotion") : t("timeline.camera") : t("timeline.motionStrength") : isVideoComposite ? t("preview.videoComposite") : isVideoSource ? t("preview.video") : morphEnabled ? t("preview.morph") : t("preview.stage1")}</div>
           <input aria-label={parameterTimelineActive ? cameraTimelineActive ? t("timeline.cameraPosition") : t("timeline.position") : isVideoSource ? t("video.timelinePosition") : t("preview.timelinePosition")} type="range" min="0" max="100" value={Math.round(transportProgress)} disabled={!transportCanUse || animationExporting} onChange={(e) => seekTransport(Number(e.target.value) / 100)} />
         </div>
       </section>
@@ -1198,7 +1204,7 @@ function App() {
           <label>{t("inspector.background")}<div className="color-row"><input type="color" value={background} disabled={animationExporting} onChange={(e) => setBackground(e.target.value)} /><code>{background}</code></div></label>
         </section>
         {rendererMode !== "original" && <section className="inspector-section" data-stage5-motion="true" data-motion-strength={effectiveMotionStrength.toFixed(3)}><h2>{t("motion.title")}</h2><p>{t("motion.hint")}</p><label>{t("motion.type")}<select aria-label={t("motion.type")} value={motionMode} disabled={animationExporting} onChange={(e) => { const next = e.target.value as PreviewMotionMode; setMotionMode(next); if (next === "static") { setMotionTimelinePlaying(false); setMotionTimelineTime(0); } }}><option value="static">{t("motion.static")}</option><option value="pulse">{t("motion.pulse")}</option><option value="drift">{t("motion.drift")}</option></select></label>{motionMode !== "static" && <><label>{t("motion.strength")}<div className="range-row"><input aria-label={t("motion.strength")} type="range" min="0" max="200" value={Math.round(effectiveMotionStrength * 100)} disabled={animationExporting || motionKeyframesEnabled} onChange={(e) => setMotionStrength(Number(e.target.value) / 100)} /><output>{Math.round(effectiveMotionStrength * 100)}%</output></div></label><label>{t("motion.speed")}<div className="range-row"><input aria-label={t("motion.speed")} type="range" min="25" max="300" value={Math.round(motionSpeed * 100)} disabled={animationExporting} onChange={(e) => setMotionSpeed(Number(e.target.value) / 100)} /><output>{motionSpeed.toFixed(2)}×</output></div></label><label>{t("motion.duration")}<div className="range-row"><input aria-label={t("motion.duration")} type="range" min="1" max="12" step="0.5" value={motionDuration} disabled={animationExporting} onChange={(e) => { setMotionDuration(Number(e.target.value)); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /><output>{motionDuration} {t("morph.seconds")}</output></div></label><div className="toggle-row"><span>{t("motion.keyframes")}</span><button aria-label={t("motion.keyframesToggle")} disabled={animationExporting || morphEnabled} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`} aria-pressed={motionKeyframesEnabled} onClick={() => { const next = !motionKeyframesEnabled; setMotionKeyframesEnabled(next); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /></div>{motionKeyframesEnabled && !morphEnabled && <><p>{t("motion.keyframesHint")}</p><label>{t("motion.startStrength")}<div className="range-row"><input aria-label={t("motion.startStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthStart * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthStart(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthStart * 100)}%</output></div></label><label>{t("motion.endStrength")}<div className="range-row"><input aria-label={t("motion.endStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthEnd * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthEnd(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthEnd * 100)}%</output></div></label><label>{t("motion.keyframeEasing")}<select aria-label={t("motion.keyframeEasing")} value={motionKeyframeEasing} disabled={animationExporting} onChange={(e) => setMotionKeyframeEasing(e.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label></>}</>}</section>}
-        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input type="range" min="0" max="100" value={Math.round(morphProgress * 100)} disabled={animationExporting} onChange={(e) => { setMorphPlaying(false); setMorphProgress(Number(e.target.value) / 100); }} /><output>{Math.round(morphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); if (morphProgress >= 1) setMorphProgress(0); setMorphPlaying((v) => !v); }}>{morphPlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
+        <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); setMotionTimelinePlaying(false); if (next) setMotionTimelineTime(morphProgress * morphDuration); else setMorphProgress(timelineMorphProgress); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input aria-label={t("morph.progress")} type="range" min="0" max="100" value={Math.round(timelineMorphProgress * 100)} disabled={animationExporting} onChange={(e) => { const progress = Number(e.target.value) / 100; setMorphPlaying(false); setMotionTimelinePlaying(false); setMorphProgress(progress); if (morphTimelineActive) setMotionTimelineTime(progress * morphDuration); }} /><output>{Math.round(timelineMorphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); setMorphPlaying(false); if (timelineMorphProgress >= 1) { setMorphProgress(0); setMotionTimelineTime(0); } setMotionTimelinePlaying((value) => !value); }}>{morphTimelineActive && motionTimelinePlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">4</span><div><h2>{t("export.still")}</h2><p>{isVideoSource ? t("guide.videoStillExportHint") : t("guide.exportHint")}</p></div></div><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={!hasSource || animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
         <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : animationExportError ?? (animationExportSucceeded ? (cameraAnimationExport ? t("export.cameraAnimationSaved") : motionOnlyExport ? t("export.motionAnimationSaved") : t("export.animationSaved")) : (cameraAnimationExport ? t("export.cameraAnimationHint") : motionOnlyExport ? t("export.motionAnimationHint") : t("export.animationHint")))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportShortAnimation()}>{animationExporting ? t("export.animationRecording") : cameraAnimationExport ? t("export.cameraAnimationButton") : motionOnlyExport ? t("export.motionAnimationButton") : t("export.animationButton")}</button></section>
         <section className="inspector-section local-processing-note"><strong>{t("status.localProcessing")}</strong><p>{t("status.localProcessingDetail")}</p><code>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</code></section>

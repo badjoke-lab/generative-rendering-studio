@@ -121,6 +121,7 @@ export const en = {
   "motion.endStrength": "End strength",
   "motion.keyframeEasing": "Keyframe easing",
   "timeline.motionStrength": "Motion Strength",
+  "timeline.morphTrack": "Morph progress",
   "timeline.position": "Motion Strength timeline position",
   "timeline.play": "Play keyframes",
   "timeline.stop": "Stop keyframes",
