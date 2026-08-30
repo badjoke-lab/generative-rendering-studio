@@ -129,3 +129,50 @@ test("Stage 5 Original layer opacity keyframes fit the mobile inspector without 
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: `${evidenceDir}/stage5-layer-opacity-keyframes-390x844-en.png`, fullPage: true });
 });
+
+
+test("webkit second-browser critical: Stage 5 video Layer order controls preview and still export order", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 700 });
+  await loadVideoLayerScene(page);
+  await page.getByRole("button", { name: "Show original under transform" }).click();
+  await page.getByLabel("Original opacity").fill("45");
+
+  const order = page.getByLabel("Stack order");
+  await expect(order).toHaveValue("transformed-top");
+  await expect(page.locator('[data-video-composite="true"]')).toHaveAttribute("data-video-layer-order", "transformed-top");
+  await order.selectOption("original-top");
+  await expect(page.locator('[data-video-composite="true"]')).toHaveAttribute("data-video-layer-order", "original-top");
+  await expect(page.locator('[data-video-layer="original"]')).toHaveCSS("z-index", "2");
+  await expect(page.locator('[data-video-layer="transformed"]')).toHaveCSS("z-index", "1");
+
+  const rows = page.locator('[data-stage5-layer-stack="video"] .stage5-layer-row');
+  await expect(rows.nth(0)).toHaveAttribute("data-layer-id", "video-transformed");
+  await expect(rows.nth(1)).toHaveAttribute("data-layer-id", "video-original");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export current frame", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toContain("stage5-layer-source-webm-point-composite.png");
+  const outputPath = `${outputDir}/stage5-layer-order-${download.suggestedFilename()}`;
+  await download.saveAs(outputPath);
+  const bytes = readFileSync(outputPath);
+  expect(bytes.byteLength).toBeGreaterThan(1000);
+  expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+
+  await page.screenshot({ path: `${evidenceDir}/stage5-video-layer-order-original-top-1440x700-en.png`, fullPage: true });
+  await page.getByLabel("Language").selectOption("ja");
+  await expect(page.getByLabel("重なり順")).toHaveValue("original-top");
+  await page.screenshot({ path: `${evidenceDir}/stage5-video-layer-order-original-top-1440x700-ja.png`, fullPage: true });
+});
+
+test("Stage 5 video Layer order control remains usable on mobile", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "Mobile layout evidence is retained in Chromium");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadVideoLayerScene(page);
+  await page.getByRole("button", { name: "Show original under transform" }).click();
+  await page.getByLabel("Stack order").selectOption("original-top");
+  await expect(page.locator('[data-video-composite="true"]')).toHaveAttribute("data-video-layer-order", "original-top");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: `${evidenceDir}/stage5-video-layer-order-original-top-390x844-en.png`, fullPage: true });
+});
