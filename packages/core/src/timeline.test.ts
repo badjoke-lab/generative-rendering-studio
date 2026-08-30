@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  createCameraTrack,
   createLayerOpacityTrack,
   createMotionStrengthTrack,
   createNumericKeyframe,
   createStudioTimeline,
   normalizeNumericKeyframes,
+  sampleCameraTrack,
   sampleLayerOpacityTrack,
   sampleMotionStrengthTrack,
   sampleNumericKeyframes,
@@ -88,6 +90,25 @@ describe("timeline and numeric keyframes", () => {
     expect(sampleMotionStrengthTrack(track, 3)).toBeCloseTo(1.5, 6);
     expect(sampleMotionStrengthTrack(track, 99)).toBe(2);
     expect(sampleMotionStrengthTrack(createMotionStrengthTrack("empty"), 1)).toBeNull();
+  });
+
+  it("creates bounded Camera tracks and samples all channels on one playhead", () => {
+    const track = createCameraTrack("camera-main", {
+      panX: [createNumericKeyframe(0, -2), createNumericKeyframe(4, 2)],
+      panY: [createNumericKeyframe(0, 0), createNumericKeyframe(4, -0.5)],
+      zoom: [createNumericKeyframe(0, 0), createNumericKeyframe(4, 4)],
+      rotation: [createNumericKeyframe(0, -360), createNumericKeyframe(4, 360)],
+    });
+
+    expect(track.kind).toBe("camera");
+    expect(track.panX[0]?.value).toBe(-1);
+    expect(track.panX[1]?.value).toBe(1);
+    expect(track.zoom[0]?.value).toBe(0.25);
+    expect(track.zoom[1]?.value).toBe(3);
+    expect(track.rotation[0]?.value).toBe(-180);
+    expect(track.rotation[1]?.value).toBe(180);
+    expect(sampleCameraTrack(track, 2)).toEqual({ panX: 0, panY: -0.25, zoom: 1.625, rotation: 0 });
+    expect(sampleCameraTrack(createCameraTrack("empty"), 1)).toBeNull();
   });
 
   it("normalizes timeline duration and bounds the playhead without sharing track arrays", () => {
