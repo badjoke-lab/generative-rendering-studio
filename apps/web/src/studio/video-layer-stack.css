@@ -32,6 +32,27 @@
   color: var(--muted, #9299aa);
 }
 
+.stage5-layer-order-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 1.15fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--muted, #9299aa);
+  font-size: 11px;
+}
+
+.stage5-layer-order-control select {
+  min-width: 0;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background-color: #151922;
+  color: #eef0f7;
+  color-scheme: dark;
+}
+
 .stage5-layer-row {
   display: grid;
   grid-template-columns: 28px minmax(86px, 1fr) minmax(92px, 1.15fr) 44px;
@@ -116,6 +137,11 @@ button.stage5-layer-visibility {
 }
 
 @media (max-width: 720px) {
+  .stage5-layer-order-control {
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 1.2fr);
+    gap: 8px;
+  }
+
   .stage5-layer-row {
     grid-template-columns: 28px minmax(76px, 1fr) minmax(86px, 1.2fr) 38px;
     gap: 6px;

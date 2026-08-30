@@ -181,6 +181,7 @@ function App() {
   const [videoOriginalOpacityEnd, setVideoOriginalOpacityEnd] = useState(0.85);
   const [videoOriginalOpacityEasing, setVideoOriginalOpacityEasing] = useState<KeyframeEasing>("ease-in-out");
   const [videoBlendMode, setVideoBlendMode] = useState<VideoLayerBlendMode>("normal");
+  const [videoOriginalOnTop, setVideoOriginalOnTop] = useState(false);
   const [maskVideoLabel, setMaskVideoLabel] = useState("");
   const [maskVideoDuration, setMaskVideoDuration] = useState(0);
   const [maskStrength, setMaskStrength] = useState(1);
@@ -297,6 +298,7 @@ function App() {
     setVideoCompositeOriginal(false);
     setVideoOriginalOpacityKeyframesEnabled(false);
     setVideoBlendMode("normal");
+    setVideoOriginalOnTop(false);
   };
 
   const captureMaskFrame = () => {
@@ -849,10 +851,15 @@ function App() {
     const canvas = previewCanvas.current;
     if (!canvas) return;
     const exportCanvas = isVideoComposite && originalUnderlayCanvas.current
-      ? composeCanvasStack([
-          { canvas: originalUnderlayCanvas.current, opacity: effectiveVideoOriginalOpacity, blendMode: "normal" },
-          { canvas, blendMode: videoBlendMode },
-        ])
+      ? composeCanvasStack(videoOriginalOnTop
+        ? [
+            { canvas, blendMode: videoBlendMode },
+            { canvas: originalUnderlayCanvas.current, opacity: effectiveVideoOriginalOpacity, blendMode: "normal" },
+          ]
+        : [
+            { canvas: originalUnderlayCanvas.current, opacity: effectiveVideoOriginalOpacity, blendMode: "normal" },
+            { canvas, blendMode: videoBlendMode },
+          ])
       : canvas;
     const ext = exportFormat === "webp" ? "webp" : "png";
     const compositeSuffix = isVideoComposite ? "-composite" : "";
@@ -1057,7 +1064,7 @@ function App() {
           {rendererMode === "original" ? (
             <OriginalPreview canvasRef={previewCanvas} raster={raster} background={background} />
           ) : isVideoComposite ? (
-            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={effectiveVideoOriginalOpacity} transformedBlendMode={videoBlendMode} positions={previewPositions} colors={previewColors} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
+            <VideoCompositePreview originalCanvasRef={originalUnderlayCanvas} transformedCanvasRef={previewCanvas} raster={raster} originalOpacity={effectiveVideoOriginalOpacity} originalOnTop={videoOriginalOnTop} transformedBlendMode={videoBlendMode} positions={previewPositions} colors={previewColors} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           ) : (
             <WebGLPreview canvasRef={previewCanvas} positions={previewPositions} colors={previewColors} targetPositions={activeMorph?.toPositions} targetColors={activeMorph?.toColors} morphProgress={activeMorph ? easedProgress : 0} mode={rendererMode} motionMode={motionMode} motionStrength={effectiveMotionStrength} motionSpeed={motionSpeed} elementSize={effectiveElementSize} tint={tint} background={background} useSourceColor={useSourceColor} glyphPreset={glyphPreset} />
           )}
@@ -1078,6 +1085,7 @@ function App() {
           originalVisible={videoCompositeOriginal}
           originalOpacity={effectiveVideoOriginalOpacity}
           originalOpacityDisabled={videoOriginalOpacityKeyframesEnabled}
+          originalOnTop={videoOriginalOnTop}
           transformedBlendMode={videoBlendMode}
           labels={{
             title: t("layer.title"),
@@ -1088,12 +1096,16 @@ function App() {
             originalOpacity: t("video.originalOpacity"),
             opacity: t("layer.opacity"),
             blend: t("layer.blend"),
+            order: t("layer.order"),
+            originalOnTop: t("layer.originalOnTop"),
+            transformedOnTop: t("layer.transformedOnTop"),
             normal: t("layer.normal"),
             multiply: t("layer.multiply"),
             screen: t("layer.screen"),
           }}
           onOriginalVisibleChange={setVideoCompositeOriginal}
           onOriginalOpacityChange={setVideoOriginalOpacity}
+          onOriginalOnTopChange={setVideoOriginalOnTop}
           onTransformedBlendModeChange={setVideoBlendMode}
         />}
         {isVideoSource && rendererMode !== "original" && videoCompositeOriginal && <section className="inspector-section" data-stage5-layer-opacity-keyframes="true">
