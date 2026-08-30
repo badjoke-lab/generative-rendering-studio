@@ -14,14 +14,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: stage5/camera-controls
+      - name: Fix integration matcher
+        run: python scripts/fix_stage5_camera_script.py
       - name: Apply Camera controls integration
         run: python scripts/stage5_camera_controls_once.py
       - name: Remove one-shot files and commit implementation
         run: |
+          rm scripts/fix_stage5_camera_script.py
           rm scripts/stage5_camera_controls_once.py
           rm .github/workflows/stage5-camera-controls-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/src/main.tsx apps/web/src/webgl/WebGLPreview.tsx apps/web/src/canvas/OriginalPreview.tsx apps/web/src/canvas/VideoCompositePreview.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts tests/browser/stage5-camera-controls.spec.ts scripts/stage5_camera_controls_once.py .github/workflows/stage5-camera-controls-once.yml
+          git add apps/web/src/main.tsx apps/web/src/webgl/WebGLPreview.tsx apps/web/src/canvas/OriginalPreview.tsx apps/web/src/canvas/VideoCompositePreview.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts tests/browser/stage5-camera-controls.spec.ts scripts/fix_stage5_camera_script.py scripts/stage5_camera_controls_once.py .github/workflows/stage5-camera-controls-once.yml
           git commit -m "Stage 5: add Camera controls"
           git push origin HEAD:stage5/camera-controls
