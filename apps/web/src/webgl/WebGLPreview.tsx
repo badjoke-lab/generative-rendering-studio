@@ -21,6 +21,9 @@ uniform float u_motion_speed;
 uniform int u_use_source_color;
 uniform vec3 u_tint;
 uniform vec2 u_view_scale;
+uniform vec2 u_camera_pan;
+uniform float u_camera_zoom;
+uniform float u_camera_rotation;
 flat out int v_glyph;
 out vec4 v_color;
 void main() {
@@ -31,7 +34,12 @@ void main() {
   float wave = sin(motionTime * 1.4 + sourcePosition.x * 8.0 + sourcePosition.y * 5.0);
   float pulse = u_motion_mode == 1 ? 0.018 * u_motion_strength * wave : 0.0;
   vec2 drift = u_motion_mode == 2 ? vec2(cos(motionTime + sourcePosition.y * 9.0), sin(motionTime * 0.8 + sourcePosition.x * 7.0)) * 0.008 * u_motion_strength : vec2(0.0);
-  vec2 p = (sourcePosition * (0.94 + pulse) + drift) * u_view_scale;
+  vec2 scene = sourcePosition * (0.94 + pulse) + drift;
+  float cameraRadians = radians(u_camera_rotation);
+  float cameraCos = cos(cameraRadians);
+  float cameraSin = sin(cameraRadians);
+  mat2 cameraRotation = mat2(cameraCos, cameraSin, -cameraSin, cameraCos);
+  vec2 p = (cameraRotation * scene) * u_camera_zoom * u_view_scale + u_camera_pan;
   gl_Position = vec4(p, 0.0, 1.0);
   gl_PointSize = u_point_size;
   v_glyph = int(a_glyph + 0.5);
@@ -200,6 +208,10 @@ export function WebGLPreview({
   background = "#090b10",
   useSourceColor = false,
   glyphPreset = "binary",
+  cameraPanX = 0,
+  cameraPanY = 0,
+  cameraZoom = 1,
+  cameraRotation = 0,
   transparentBackground = false,
   canvasRef: externalCanvasRef,
 }: {
@@ -217,6 +229,10 @@ export function WebGLPreview({
   background?: string;
   useSourceColor?: boolean;
   glyphPreset?: GlyphPreset;
+  cameraPanX?: number;
+  cameraPanY?: number;
+  cameraZoom?: number;
+  cameraRotation?: number;
   transparentBackground?: boolean;
   canvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }) {
@@ -228,6 +244,14 @@ export function WebGLPreview({
   motionStrengthRef.current = motionStrength;
   const motionSpeedRef = useRef(motionSpeed);
   motionSpeedRef.current = motionSpeed;
+  const cameraPanXRef = useRef(cameraPanX);
+  cameraPanXRef.current = cameraPanX;
+  const cameraPanYRef = useRef(cameraPanY);
+  cameraPanYRef.current = cameraPanY;
+  const cameraZoomRef = useRef(cameraZoom);
+  cameraZoomRef.current = cameraZoom;
+  const cameraRotationRef = useRef(cameraRotation);
+  cameraRotationRef.current = cameraRotation;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -272,6 +296,9 @@ export function WebGLPreview({
     const sourceColorUniform = gl.getUniformLocation(program, "u_use_source_color");
     const tintUniform = gl.getUniformLocation(program, "u_tint");
     const viewScaleUniform = gl.getUniformLocation(program, "u_view_scale");
+    const cameraPanUniform = gl.getUniformLocation(program, "u_camera_pan");
+    const cameraZoomUniform = gl.getUniformLocation(program, "u_camera_zoom");
+    const cameraRotationUniform = gl.getUniformLocation(program, "u_camera_rotation");
     const tintRgb = hexRgb(tint);
     const bgRgb = hexRgb(background);
     gl.useProgram(program);
@@ -303,8 +330,15 @@ export function WebGLPreview({
       const viewScaleX = viewportAspect >= 1 ? 1 / viewportAspect : 1;
       const viewScaleY = viewportAspect >= 1 ? 1 : viewportAspect;
       gl.uniform2f(viewScaleUniform, viewScaleX, viewScaleY);
+      const safeCameraPanX = Number.isFinite(cameraPanXRef.current) ? Math.min(1, Math.max(-1, cameraPanXRef.current)) : 0;
+      const safeCameraPanY = Number.isFinite(cameraPanYRef.current) ? Math.min(1, Math.max(-1, cameraPanYRef.current)) : 0;
+      const safeCameraZoom = Number.isFinite(cameraZoomRef.current) ? Math.min(3, Math.max(0.25, cameraZoomRef.current)) : 1;
+      const safeCameraRotation = Number.isFinite(cameraRotationRef.current) ? cameraRotationRef.current : 0;
+      gl.uniform2f(cameraPanUniform, safeCameraPanX, safeCameraPanY);
+      gl.uniform1f(cameraZoomUniform, safeCameraZoom);
+      gl.uniform1f(cameraRotationUniform, safeCameraRotation);
       const baseSize = mode === "glyph" ? 8 : mode === "particle" ? 5.5 : 2.4;
-      gl.uniform1f(pointSize, baseSize * Math.max(0.4, elementSize) * dpr);
+      gl.uniform1f(pointSize, baseSize * Math.max(0.4, elementSize) * dpr * safeCameraZoom);
       gl.drawArrays(gl.POINTS, 0, count);
       frame = requestAnimationFrame(render);
     };
@@ -322,5 +356,5 @@ export function WebGLPreview({
   }, [background, canvasRef, colors, elementSize, glyphPreset, mode, motionMode, positions, targetColors, targetPositions, tint, transparentBackground, useSourceColor]);
 
   if (error) return <div className="preview-error">{error}</div>;
-  return <canvas ref={canvasRef} className="preview-canvas" />;
+  return <canvas ref={canvasRef} className="preview-canvas" data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
 }

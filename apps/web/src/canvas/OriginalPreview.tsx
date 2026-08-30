@@ -5,10 +5,18 @@ export function OriginalPreview({
   canvasRef,
   raster,
   background,
+  cameraPanX = 0,
+  cameraPanY = 0,
+  cameraZoom = 1,
+  cameraRotation = 0,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   raster?: RasterPixels;
   background: string;
+  cameraPanX?: number;
+  cameraPanY?: number;
+  cameraZoom?: number;
+  cameraRotation?: number;
 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,11 +48,16 @@ export function OriginalPreview({
         const scale = Math.min(width / raster.width, height / raster.height);
         const drawWidth = raster.width * scale;
         const drawHeight = raster.height * scale;
-        const x = (width - drawWidth) / 2;
-        const y = (height - drawHeight) / 2;
+        const safePanX = Number.isFinite(cameraPanX) ? Math.min(1, Math.max(-1, cameraPanX)) : 0;
+        const safePanY = Number.isFinite(cameraPanY) ? Math.min(1, Math.max(-1, cameraPanY)) : 0;
+        const safeZoom = Number.isFinite(cameraZoom) ? Math.min(3, Math.max(0.25, cameraZoom)) : 1;
+        const safeRotation = Number.isFinite(cameraRotation) ? cameraRotation : 0;
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(source, x, y, drawWidth, drawHeight);
+        ctx.translate(width / 2 + safePanX * width / 2, height / 2 - safePanY * height / 2);
+        ctx.rotate((safeRotation * Math.PI) / 180);
+        ctx.scale(safeZoom, safeZoom);
+        ctx.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
       }
     } else {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
@@ -54,7 +67,7 @@ export function OriginalPreview({
       ctx.fillText("Add an image, SVG, or text source", width / 2, height / 2);
     }
     ctx.restore();
-  }, [background, canvasRef, raster]);
+  }, [background, cameraPanX, cameraPanY, cameraRotation, cameraZoom, canvasRef, raster]);
 
-  return <canvas ref={canvasRef} className="preview-canvas" />;
+  return <canvas ref={canvasRef} className="preview-canvas" data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
 }
