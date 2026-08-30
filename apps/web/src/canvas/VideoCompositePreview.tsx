@@ -28,6 +28,10 @@ export function VideoCompositePreview({
   background,
   useSourceColor,
   glyphPreset,
+  cameraPanX = 0,
+  cameraPanY = 0,
+  cameraZoom = 1,
+  cameraRotation = 0,
 }: {
   originalCanvasRef: RefObject<HTMLCanvasElement | null>;
   transformedCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -46,6 +50,10 @@ export function VideoCompositePreview({
   background: string;
   useSourceColor: boolean;
   glyphPreset: GlyphPreset;
+  cameraPanX?: number;
+  cameraPanY?: number;
+  cameraZoom?: number;
+  cameraRotation?: number;
 }) {
   return (
     <div
@@ -64,7 +72,7 @@ export function VideoCompositePreview({
           zIndex: originalOnTop ? 2 : 1,
         }}
       >
-        <OriginalPreview canvasRef={originalCanvasRef} raster={raster} background={background} />
+        <OriginalPreview canvasRef={originalCanvasRef} raster={raster} background={background} cameraPanX={cameraPanX} cameraPanY={cameraPanY} cameraZoom={cameraZoom} cameraRotation={cameraRotation} />
       </div>
       <div
         className="video-composite-overlay"
@@ -88,6 +96,10 @@ export function VideoCompositePreview({
           background={background}
           useSourceColor={useSourceColor}
           glyphPreset={glyphPreset}
+          cameraPanX={cameraPanX}
+          cameraPanY={cameraPanY}
+          cameraZoom={cameraZoom}
+          cameraRotation={cameraRotation}
           transparentBackground
         />
       </div>
