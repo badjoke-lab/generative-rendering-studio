@@ -31,7 +31,7 @@ jobs:
         run: python .github/stage5-second-source-patch.py
       - name: Remove temporary patch plumbing
         run: |
-          git rm .github/stage5-second-source-patch.py .github/workflows/stage5-second-source-selfpatch.yml
+          git rm -f .github/stage5-second-source-patch.py .github/workflows/stage5-second-source-selfpatch.yml
           git fetch origin main --depth=1
           git show FETCH_HEAD:.github/workflows/ci.yml > .github/workflows/ci.yml
       - name: Commit Studio integration
