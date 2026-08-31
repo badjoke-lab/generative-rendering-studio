@@ -122,6 +122,8 @@ export const en = {
   "motion.keyframeEasing": "Keyframe easing",
   "timeline.motionStrength": "Motion Strength",
   "timeline.morphTrack": "Morph progress",
+  "timeline.multitrack": "Studio tracks",
+  "timeline.multitrackPosition": "Studio timeline position",
   "timeline.position": "Motion Strength timeline position",
   "timeline.play": "Play keyframes",
   "timeline.stop": "Stop keyframes",

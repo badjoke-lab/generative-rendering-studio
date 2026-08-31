@@ -124,6 +124,8 @@ export const ja: Record<TranslationKey, string> = {
   "motion.keyframeEasing": "キーフレームのイージング",
   "timeline.motionStrength": "Motionの強さ",
   "timeline.morphTrack": "モーフ進行",
+  "timeline.multitrack": "Studioトラック",
+  "timeline.multitrackPosition": "Studioタイムライン位置",
   "timeline.position": "Motion強さタイムライン位置",
   "timeline.play": "キーフレームを再生",
   "timeline.stop": "キーフレームを停止",

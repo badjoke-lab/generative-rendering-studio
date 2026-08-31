@@ -48,7 +48,9 @@ test("Stage 5 Camera keyframes sample through the shared transport and can combi
   const motion = page.locator('[data-stage5-motion="true"]');
   await motion.getByLabel("Motion type").selectOption("pulse");
   await motion.getByRole("button", { name: "Toggle keyframes" }).click();
-  await expect(page.locator(".transport-bar")).toHaveAttribute("data-timeline-mode", "camera+motion");
+  const transport = page.locator(".transport-bar");
+  await expect(transport).toHaveAttribute("data-timeline-mode", "multi-track");
+  await expect(transport).toHaveAttribute("data-timeline-tracks", "camera+motion-strength");
   await timeline.fill("0");
   await page.getByRole("button", { name: "Play keyframes" }).click();
   await expect.poll(async () => Number(await canvas.getAttribute("data-camera-pan-x"))).toBeGreaterThan(0.01);
@@ -57,7 +59,7 @@ test("Stage 5 Camera keyframes sample through the shared transport and can combi
   await page.screenshot({ path: `${evidenceDir}/stage5-camera-keyframes-1440x700-en.png`, fullPage: true });
   await page.getByLabel("Language").selectOption("ja");
   await expect(camera).toContainText("カメラをキーフレーム化");
-  await expect(page.locator(".transport-time")).toContainText("カメラ＋Motion");
+  await expect(page.locator(".transport-time")).toContainText("Studioトラック");
   await page.screenshot({ path: `${evidenceDir}/stage5-camera-keyframes-1440x700-ja.png`, fullPage: true });
 });
 
