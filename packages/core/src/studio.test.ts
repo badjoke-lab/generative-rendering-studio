@@ -5,9 +5,11 @@ import {
   createSourceBoundLayerClip,
   createStudioScene,
   getStudioSceneTimelineDuration,
+  indexStudioSources,
   insertSceneLayer,
   moveSceneLayer,
   removeSceneLayer,
+  resolveStudioSceneSources,
   sampleLayerClip,
   sampleSourceBoundLayerClip,
   sampleStudioSceneTimeline,
@@ -33,6 +35,34 @@ describe("scene layer stack", () => {
     expect(createSceneLayer({ id: "low", sourceId: "s", renderer: "point", opacity: -4 }).opacity).toBe(0);
     expect(createSceneLayer({ id: "high", sourceId: "s", renderer: "particle", opacity: 4 }).opacity).toBe(1);
     expect(createSceneLayer({ id: "nan", sourceId: "s", renderer: "original", opacity: Number.NaN }).opacity).toBe(1);
+  });
+
+  it("resolves separate scene layers to separate existing project sources without changing stack order", () => {
+    const sourceA = { id: "image-a", kind: "raster", label: "Image A" } as const;
+    const sourceB = { id: "video-b", kind: "video", label: "Video B" } as const;
+    const scene = createStudioScene("multi-source", [
+      createSceneLayer({ id: "video-layer", sourceId: sourceB.id, renderer: "particle" }),
+      createSceneLayer({ id: "image-layer", sourceId: sourceA.id, renderer: "original" }),
+    ]);
+
+    const resolved = resolveStudioSceneSources(scene, [sourceA, sourceB]);
+    expect(resolved.map(({ layer: resolvedLayer }) => resolvedLayer.id)).toEqual(["video-layer", "image-layer"]);
+    expect(resolved[0].source).toBe(sourceB);
+    expect(resolved[1].source).toBe(sourceA);
+    expect(resolved[0].source.id).not.toBe(resolved[1].source.id);
+  });
+
+  it("fails closed when the project source index is ambiguous or a layer source is missing", () => {
+    const source = { id: "source-a", kind: "raster", label: "A" } as const;
+    expect(() => indexStudioSources([source, { ...source, label: "duplicate" }])).toThrow("duplicate-source-id:source-a");
+    expect(() => indexStudioSources([{ ...source, id: "   " }])).toThrow("invalid-source-id");
+
+    const scene = createStudioScene("missing", [createSceneLayer({
+      id: "layer-a",
+      sourceId: "source-missing",
+      renderer: "point",
+    })]);
+    expect(() => resolveStudioSceneSources(scene, [source])).toThrow("missing-source-id:source-missing");
   });
 
   it("keeps ordinary layers untimed while normalizing optional clip placement and trim", () => {
