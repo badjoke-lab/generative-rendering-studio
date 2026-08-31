@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   createLayerClip,
   createSceneLayer,
+  createSourceBoundLayerClip,
   createStudioScene,
   insertSceneLayer,
   moveSceneLayer,
   removeSceneLayer,
   sampleLayerClip,
+  sampleSourceBoundLayerClip,
   setSceneLayerClip,
   updateSceneLayer,
 } from "./studio";
@@ -53,6 +55,54 @@ describe("scene layer stack", () => {
     expect(sampleLayerClip(clip, 3.5)).toEqual({ active: true, localTime: 1.5, sourceTime: 5.5 });
     expect(sampleLayerClip(clip, 5)).toEqual({ active: false, localTime: 3, sourceTime: 7 });
     expect(sampleLayerClip(undefined, 99)).toEqual({ active: true, localTime: 99, sourceTime: 99 });
+  });
+
+  it("binds a media clip to its real source duration and defaults to the remaining source range", () => {
+    expect(createSourceBoundLayerClip({ timelineStart: 1.5, sourceStart: 0.5 }, 2)).toEqual({
+      timelineStart: 1.5,
+      duration: 1.5,
+      sourceStart: 0.5,
+    });
+
+    expect(createSourceBoundLayerClip({ timelineStart: -1, sourceStart: 0.5, duration: 9 }, 2)).toEqual({
+      timelineStart: 0,
+      duration: 1.5,
+      sourceStart: 0.5,
+    });
+  });
+
+  it("keeps source starts and durations inside the media boundary", () => {
+    expect(createSourceBoundLayerClip({ sourceStart: 9, duration: 4 }, 2)).toEqual({
+      timelineStart: 0,
+      duration: 0.001,
+      sourceStart: 1.999,
+    });
+
+    expect(() => createSourceBoundLayerClip({}, 0)).toThrow("invalid-source-duration");
+    expect(() => createSourceBoundLayerClip({}, Number.NaN)).toThrow("invalid-source-duration");
+  });
+
+  it("samples source-bounded clips with normalized source progress for synchronized media roles", () => {
+    const clip = createSourceBoundLayerClip({ timelineStart: 1, sourceStart: 0.5, duration: 1 }, 2);
+
+    expect(sampleSourceBoundLayerClip(clip, 0, 2)).toEqual({
+      active: false,
+      localTime: 0,
+      sourceTime: 0.5,
+      sourceProgress: 0.25,
+    });
+    expect(sampleSourceBoundLayerClip(clip, 1.5, 2)).toEqual({
+      active: true,
+      localTime: 0.5,
+      sourceTime: 1,
+      sourceProgress: 0.5,
+    });
+    expect(sampleSourceBoundLayerClip(clip, 2, 2)).toEqual({
+      active: false,
+      localTime: 1,
+      sourceTime: 1.5,
+      sourceProgress: 0.75,
+    });
   });
 
   it("preserves explicit layer order when inserting and rejects duplicate ids", () => {
