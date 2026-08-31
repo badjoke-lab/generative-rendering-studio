@@ -1,0 +1,26 @@
+.stage5-video-clip {
+  display: grid;
+  gap: 10px;
+}
+
+.stage5-video-clip h2,
+.stage5-video-clip p {
+  margin: 0;
+}
+
+.stage5-video-clip p {
+  color: var(--muted, #9299aa);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stage5-video-clip-range {
+  display: grid;
+  gap: 6px;
+}
+
+.stage5-video-clip-range code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
