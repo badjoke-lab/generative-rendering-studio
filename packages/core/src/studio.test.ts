@@ -52,7 +52,7 @@ describe("scene layer stack", () => {
     expect(sampleLayerClip(clip, 2)).toEqual({ active: true, localTime: 0, sourceTime: 4 });
     expect(sampleLayerClip(clip, 3.5)).toEqual({ active: true, localTime: 1.5, sourceTime: 5.5 });
     expect(sampleLayerClip(clip, 5)).toEqual({ active: false, localTime: 3, sourceTime: 7 });
-    expect(sampleLayerClip(undefined, 99)).toEqual({ active: true, localTime: 0, sourceTime: 0 });
+    expect(sampleLayerClip(undefined, 99)).toEqual({ active: true, localTime: 99, sourceTime: 99 });
   });
 
   it("preserves explicit layer order when inserting and rejects duplicate ids", () => {
