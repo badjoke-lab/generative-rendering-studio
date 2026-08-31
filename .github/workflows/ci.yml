@@ -17,6 +17,16 @@ jobs:
         with:
           ref: stage5/second-source-layer-ui
           fetch-depth: 0
+      - name: Align bounded patch anchors with current locale text
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/stage5-second-source-patch.py')
+          text = path.read_text()
+          text = text.replace('"action.addSource": "素材を追加"', '"action.addSource": "画像 / SVGを追加"')
+          text = text.replace('Stage 3では読み込んだ動画をライブプレビューで変換できます。長尺の変換動画書き出しは、後続の書き出し強化で対応します。', 'Stage 3では読み込んだ動画をプレビュー上で変換します。変換後の長時間動画書き出しは、後の書き出し強化で対応します。')
+          path.write_text(text)
+          PY
       - name: Apply bounded Stage 5 patch
         run: python .github/stage5-second-source-patch.py
       - name: Remove temporary patch plumbing
