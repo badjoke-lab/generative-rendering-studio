@@ -1,19 +1,6 @@
-import type { RendererKind } from "./index";
+import type { RendererKind, SourceDescriptor } from "./index";
 
 export type BlendMode = "normal" | "add" | "multiply" | "screen";
-export type StudioSourceKind = "raster" | "video" | "text" | "svg" | "procedural";
-
-export interface StudioSourceAsset {
-  readonly id: string;
-  readonly kind: StudioSourceKind;
-  readonly duration?: number;
-}
-
-export interface StudioSourceAssetInput {
-  readonly id: string;
-  readonly kind: StudioSourceKind;
-  readonly duration?: number;
-}
 
 export interface LayerClip {
   readonly timelineStart: number;
@@ -64,7 +51,7 @@ export interface StudioScene {
 
 export interface ResolvedSceneLayerSource {
   readonly layer: SceneLayer;
-  readonly source: StudioSourceAsset;
+  readonly source: SourceDescriptor;
 }
 
 export interface SceneLayerTimelineSample {
@@ -127,16 +114,10 @@ function sameLayerClip(a: LayerClip | undefined, b: LayerClip | undefined): bool
   return a.timelineStart === b.timelineStart && a.duration === b.duration && a.sourceStart === b.sourceStart;
 }
 
-export function createStudioSourceAsset(input: StudioSourceAssetInput): StudioSourceAsset {
-  const id = requireSourceId(input.id);
-  if (input.duration === undefined) return { id, kind: input.kind };
-  return { id, kind: input.kind, duration: requireSourceDuration(input.duration) };
-}
-
-export function indexStudioSourceAssets(
-  sources: readonly StudioSourceAsset[],
-): ReadonlyMap<string, StudioSourceAsset> {
-  const index = new Map<string, StudioSourceAsset>();
+export function indexStudioSources(
+  sources: readonly SourceDescriptor[],
+): ReadonlyMap<string, SourceDescriptor> {
+  const index = new Map<string, SourceDescriptor>();
   for (const source of sources) {
     const sourceId = requireSourceId(source.id);
     if (index.has(sourceId)) throw new Error(`duplicate-source-id:${sourceId}`);
@@ -147,9 +128,9 @@ export function indexStudioSourceAssets(
 
 export function resolveStudioSceneSources(
   scene: Pick<StudioScene, "layers">,
-  sources: readonly StudioSourceAsset[],
+  sources: readonly SourceDescriptor[],
 ): readonly ResolvedSceneLayerSource[] {
-  const sourceIndex = indexStudioSourceAssets(sources);
+  const sourceIndex = indexStudioSources(sources);
   return scene.layers.map((layer) => {
     const source = sourceIndex.get(layer.sourceId);
     if (!source) throw new Error(`missing-source-id:${layer.sourceId}`);
