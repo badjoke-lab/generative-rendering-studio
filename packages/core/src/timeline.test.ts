@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   createCameraTrack,
   createLayerOpacityTrack,
+  createMorphProgressTrack,
   createMotionStrengthTrack,
   createNumericKeyframe,
   createStudioTimeline,
   normalizeNumericKeyframes,
   sampleCameraTrack,
   sampleLayerOpacityTrack,
+  sampleMorphProgressTrack,
   sampleMotionStrengthTrack,
   sampleNumericKeyframes,
   setTimelinePlayhead,
@@ -90,6 +92,19 @@ describe("timeline and numeric keyframes", () => {
     expect(sampleMotionStrengthTrack(track, 3)).toBeCloseTo(1.5, 6);
     expect(sampleMotionStrengthTrack(track, 99)).toBe(2);
     expect(sampleMotionStrengthTrack(createMotionStrengthTrack("empty"), 1)).toBeNull();
+  });
+
+  it("creates a bounded Morph progress track and samples it in timeline seconds", () => {
+    const track = createMorphProgressTrack("morph-main", [
+      createNumericKeyframe(0, -1),
+      createNumericKeyframe(4, 2),
+    ]);
+    expect(track.kind).toBe("morph-progress");
+    expect(track.keyframes.map(({ value }) => value)).toEqual([0, 1]);
+    expect(sampleMorphProgressTrack(track, 0)).toBe(0);
+    expect(sampleMorphProgressTrack(track, 2)).toBe(0.5);
+    expect(sampleMorphProgressTrack(track, 4)).toBe(1);
+    expect(sampleMorphProgressTrack(createMorphProgressTrack("empty"), 2)).toBeNull();
   });
 
   it("creates bounded Camera tracks and samples all channels on one playhead", () => {

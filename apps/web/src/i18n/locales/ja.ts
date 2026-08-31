@@ -123,6 +123,7 @@ export const ja: Record<TranslationKey, string> = {
   "motion.endStrength": "終了時の強さ",
   "motion.keyframeEasing": "キーフレームのイージング",
   "timeline.motionStrength": "Motionの強さ",
+  "timeline.morphTrack": "モーフ進行",
   "timeline.position": "Motion強さタイムライン位置",
   "timeline.play": "キーフレームを再生",
   "timeline.stop": "キーフレームを停止",

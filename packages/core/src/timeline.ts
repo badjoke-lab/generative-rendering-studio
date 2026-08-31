@@ -19,6 +19,12 @@ export interface MotionStrengthTrack {
   readonly keyframes: readonly NumericKeyframe[];
 }
 
+export interface MorphProgressTrack {
+  readonly id: string;
+  readonly kind: "morph-progress";
+  readonly keyframes: readonly NumericKeyframe[];
+}
+
 export interface CameraTrack {
   readonly id: string;
   readonly kind: "camera";
@@ -35,7 +41,7 @@ export interface CameraSample {
   readonly rotation: number;
 }
 
-export type TimelineTrack = LayerOpacityTrack | MotionStrengthTrack | CameraTrack;
+export type TimelineTrack = LayerOpacityTrack | MotionStrengthTrack | MorphProgressTrack | CameraTrack;
 
 export interface StudioTimeline {
   readonly duration: number;
@@ -178,6 +184,24 @@ export function createMotionStrengthTrack(
 export function sampleMotionStrengthTrack(track: MotionStrengthTrack, time: number): number | null {
   const sampled = sampleNumericKeyframes(track.keyframes, time);
   return sampled === null ? null : clampMotionStrength(sampled);
+}
+
+export function createMorphProgressTrack(
+  id: string,
+  keyframes: readonly NumericKeyframe[] = [],
+): MorphProgressTrack {
+  return {
+    id,
+    kind: "morph-progress",
+    keyframes: normalizeNumericKeyframes(
+      keyframes.map((keyframe) => ({ ...keyframe, value: clampUnit(keyframe.value) })),
+    ),
+  };
+}
+
+export function sampleMorphProgressTrack(track: MorphProgressTrack, time: number): number | null {
+  const sampled = sampleNumericKeyframes(track.keyframes, time);
+  return sampled === null ? null : clampUnit(sampled);
 }
 
 export function createCameraTrack(

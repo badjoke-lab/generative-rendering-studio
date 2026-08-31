@@ -248,9 +248,10 @@ test("runs coherent A-to-B Morph controls and verifies PNG/WebP files", async ({
   await expect(toggle).toBeVisible();
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByText("Stage 2 morph preview")).toBeVisible();
+  const transport = page.locator(".transport-bar");
+  await expect(transport).toHaveAttribute("data-timeline-mode", "morph-track");
 
-  const timeline = page.getByLabel("Timeline position");
+  const timeline = transport.locator('input[type="range"]');
   for (const progress of [0, 50, 100]) {
     await timeline.fill(String(progress));
     await expect(page.getByText(`${progress}%`, { exact: true }).first()).toBeVisible();
