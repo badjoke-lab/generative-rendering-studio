@@ -934,10 +934,10 @@ function App() {
       setMorphProgress(0);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
+    const durationSeconds = animateParameterTimeline
+      ? Math.max(0.001, animateMorph ? morphDuration : 0, animateCamera ? cameraDuration : 0, animateMotion && motionKeyframesEnabled ? motionDuration : 0)
+      : motionDuration;
     try {
-      const durationSeconds = animateParameterTimeline
-        ? Math.max(0.001, animateMorph ? morphDuration : 0, animateCamera ? cameraDuration : 0, animateMotion && motionKeyframesEnabled ? motionDuration : 0)
-        : motionDuration;
       const result = await recordCanvasAnimation({
         canvas,
         durationSeconds,
