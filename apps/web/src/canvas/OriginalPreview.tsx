@@ -9,6 +9,7 @@ export function OriginalPreview({
   cameraPanY = 0,
   cameraZoom = 1,
   cameraRotation = 0,
+  transparentBackground = false,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   raster?: RasterPixels;
@@ -17,6 +18,7 @@ export function OriginalPreview({
   cameraPanY?: number;
   cameraZoom?: number;
   cameraRotation?: number;
+  transparentBackground?: boolean;
 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,8 +35,11 @@ export function OriginalPreview({
     }
 
     ctx.save();
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
+    if (!transparentBackground) {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, width, height);
+    }
 
     if (raster) {
       const source = document.createElement("canvas");
@@ -59,7 +64,7 @@ export function OriginalPreview({
         ctx.scale(safeZoom, safeZoom);
         ctx.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
       }
-    } else {
+    } else if (!transparentBackground) {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.font = `${Math.max(16, 18 * dpr)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -67,7 +72,7 @@ export function OriginalPreview({
       ctx.fillText("Add an image, SVG, or text source", width / 2, height / 2);
     }
     ctx.restore();
-  }, [background, cameraPanX, cameraPanY, cameraRotation, cameraZoom, canvasRef, raster]);
+  }, [background, cameraPanX, cameraPanY, cameraRotation, cameraZoom, canvasRef, raster, transparentBackground]);
 
-  return <canvas ref={canvasRef} className="preview-canvas" data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
+  return <canvas ref={canvasRef} className="preview-canvas" data-transparent-background={transparentBackground ? "true" : "false"} data-camera-pan-x={cameraPanX.toFixed(3)} data-camera-pan-y={cameraPanY.toFixed(3)} data-camera-zoom={cameraZoom.toFixed(3)} data-camera-rotation={cameraRotation.toFixed(1)} />;
 }
