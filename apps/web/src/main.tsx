@@ -941,7 +941,8 @@ function App() {
     setVideoClipOut(nextOut);
     const video = videoElement.current;
     if (!video) return;
-    if (video.currentTime > nextOut || video.currentTime < videoClipIn) seekVideoSourceTime(nextOut);
+    if (video.currentTime > nextOut) seekVideoSourceTime(nextOut);
+    else if (video.currentTime < videoClipIn) seekVideoSourceTime(videoClipIn);
     else {
       video.pause();
       setVideoPlaying(false);
@@ -1301,7 +1302,7 @@ function App() {
             <label>{t("camera.keyframeEasing")}<select aria-label={t("camera.keyframeEasing")} value={cameraKeyframeEasing} disabled={animationExporting} onChange={(event) => setCameraKeyframeEasing(event.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label>
             <label>{t("camera.current")}<code>{Math.round(effectiveCameraPanX * 100)}% · {Math.round(effectiveCameraPanY * 100)}% · {Math.round(effectiveCameraZoom * 100)}% · {Math.round(effectiveCameraRotation)}°</code></label>
           </>}
-        </section>}
+        </section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
