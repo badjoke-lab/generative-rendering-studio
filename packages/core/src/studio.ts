@@ -88,9 +88,9 @@ export function createLayerClip(input: LayerClipInput = {}): LayerClip {
 }
 
 export function sampleLayerClip(clip: LayerClip | undefined, timelineTime: number): LayerClipSample {
-  if (!clip) return { active: true, localTime: 0, sourceTime: 0 };
-
   const sampleTime = clampNonNegative(timelineTime);
+  if (!clip) return { active: true, localTime: sampleTime, sourceTime: sampleTime };
+
   const localTime = sampleTime - clip.timelineStart;
   const active = localTime >= 0 && localTime < clip.duration;
   const boundedLocalTime = Math.min(clip.duration, Math.max(0, localTime));
