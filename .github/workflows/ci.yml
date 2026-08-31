@@ -2,11 +2,37 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, stage5/second-source-layer-ui]
   pull_request:
   workflow_dispatch:
 
 jobs:
+  stage5-selfpatch:
+    if: "github.ref == 'refs/heads/stage5/second-source-layer-ui' && github.event.head_commit.message == 'Stage 5: run bounded second source patch'"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage5/second-source-layer-ui
+          fetch-depth: 0
+      - name: Apply bounded Stage 5 patch
+        run: python .github/stage5-second-source-patch.py
+      - name: Remove temporary patch plumbing
+        run: |
+          git rm .github/stage5-second-source-patch.py .github/workflows/stage5-second-source-selfpatch.yml
+          git fetch origin main --depth=1
+          git show FETCH_HEAD:.github/workflows/ci.yml > .github/workflows/ci.yml
+      - name: Commit Studio integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts .github/workflows/ci.yml
+          git diff --cached --exit-code && { echo "Expected Stage 5 patch produced no diff"; exit 1; }
+          git commit -m "Stage 5: wire independent second source layer"
+          git push origin HEAD:stage5/second-source-layer-ui
+
   test:
     runs-on: ubuntu-latest
     steps:
