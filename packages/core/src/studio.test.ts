@@ -72,11 +72,11 @@ describe("scene layer stack", () => {
   });
 
   it("keeps source starts and durations inside the media boundary", () => {
-    expect(createSourceBoundLayerClip({ sourceStart: 9, duration: 4 }, 2)).toEqual({
-      timelineStart: 0,
-      duration: 0.001,
-      sourceStart: 1.999,
-    });
+    const bounded = createSourceBoundLayerClip({ sourceStart: 9, duration: 4 }, 2);
+    expect(bounded.timelineStart).toBe(0);
+    expect(bounded.sourceStart).toBeCloseTo(1.999, 12);
+    expect(bounded.duration).toBeCloseTo(0.001, 12);
+    expect(bounded.sourceStart + bounded.duration).toBeLessThanOrEqual(2);
 
     expect(() => createSourceBoundLayerClip({}, 0)).toThrow("invalid-source-duration");
     expect(() => createSourceBoundLayerClip({}, Number.NaN)).toThrow("invalid-source-duration");
