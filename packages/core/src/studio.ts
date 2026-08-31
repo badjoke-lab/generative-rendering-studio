@@ -20,6 +20,10 @@ export interface LayerClipSample {
   readonly sourceTime: number;
 }
 
+export interface SourceBoundLayerClipSample extends LayerClipSample {
+  readonly sourceProgress: number;
+}
+
 export interface SceneLayer {
   readonly id: string;
   readonly sourceId: string;
@@ -62,6 +66,13 @@ function normalizeClipDuration(value: number | undefined): number {
   return Math.max(MIN_CLIP_DURATION, value);
 }
 
+function requireSourceDuration(sourceDuration: number): number {
+  if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) {
+    throw new Error("invalid-source-duration");
+  }
+  return sourceDuration;
+}
+
 function clampInsertIndex(index: number, length: number): number {
   if (!Number.isFinite(index)) return length;
   return Math.min(length, Math.max(0, Math.trunc(index)));
@@ -87,6 +98,24 @@ export function createLayerClip(input: LayerClipInput = {}): LayerClip {
   };
 }
 
+export function createSourceBoundLayerClip(input: LayerClipInput, sourceDuration: number): LayerClip {
+  const boundedSourceDuration = requireSourceDuration(sourceDuration);
+  const maxSourceStart = Math.max(0, boundedSourceDuration - Math.min(MIN_CLIP_DURATION, boundedSourceDuration));
+  const sourceStart = Math.min(maxSourceStart, clampNonNegative(input.sourceStart));
+  const remainingSourceDuration = Math.max(0, boundedSourceDuration - sourceStart);
+  const minDuration = Math.min(MIN_CLIP_DURATION, remainingSourceDuration);
+  const requestedDuration = input.duration === undefined || !Number.isFinite(input.duration)
+    ? remainingSourceDuration
+    : input.duration;
+  const duration = Math.min(remainingSourceDuration, Math.max(minDuration, requestedDuration));
+
+  return {
+    timelineStart: clampNonNegative(input.timelineStart),
+    duration,
+    sourceStart,
+  };
+}
+
 export function sampleLayerClip(clip: LayerClip | undefined, timelineTime: number): LayerClipSample {
   const sampleTime = clampNonNegative(timelineTime);
   if (!clip) return { active: true, localTime: sampleTime, sourceTime: sampleTime };
@@ -98,6 +127,21 @@ export function sampleLayerClip(clip: LayerClip | undefined, timelineTime: numbe
     active,
     localTime: boundedLocalTime,
     sourceTime: clip.sourceStart + boundedLocalTime,
+  };
+}
+
+export function sampleSourceBoundLayerClip(
+  clip: LayerClip,
+  timelineTime: number,
+  sourceDuration: number,
+): SourceBoundLayerClipSample {
+  const boundedSourceDuration = requireSourceDuration(sourceDuration);
+  const sample = sampleLayerClip(clip, timelineTime);
+  const sourceTime = Math.min(boundedSourceDuration, Math.max(0, sample.sourceTime));
+  return {
+    ...sample,
+    sourceTime,
+    sourceProgress: sourceTime / boundedSourceDuration,
   };
 }
 
