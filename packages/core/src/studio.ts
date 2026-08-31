@@ -49,6 +49,19 @@ export interface StudioScene {
   readonly layers: readonly SceneLayer[];
 }
 
+export interface SceneLayerTimelineSample {
+  readonly layer: SceneLayer;
+  readonly active: boolean;
+  readonly localTime: number;
+  readonly sourceTime: number;
+}
+
+export interface StudioSceneTimelineSample {
+  readonly timelineTime: number;
+  readonly layers: readonly SceneLayerTimelineSample[];
+  readonly activeLayers: readonly SceneLayerTimelineSample[];
+}
+
 const MIN_CLIP_DURATION = 0.001;
 
 function clampOpacity(value: number | undefined): number {
@@ -159,6 +172,35 @@ export function createSceneLayer(input: SceneLayerInput): SceneLayer {
 
 export function createStudioScene(id: string, layers: readonly SceneLayer[] = []): StudioScene {
   return { id, layers: [...layers] };
+}
+
+export function getStudioSceneTimelineDuration(scene: Pick<StudioScene, "layers">): number {
+  return scene.layers.reduce((duration, layer) => {
+    if (!layer.clip) return duration;
+    return Math.max(duration, layer.clip.timelineStart + layer.clip.duration);
+  }, 0);
+}
+
+export function sampleStudioSceneTimeline(
+  scene: Pick<StudioScene, "layers">,
+  timelineTime: number,
+): StudioSceneTimelineSample {
+  const sampleTime = clampNonNegative(timelineTime);
+  const layers = scene.layers.map((layer): SceneLayerTimelineSample => {
+    const clipSample = sampleLayerClip(layer.clip, sampleTime);
+    return {
+      layer,
+      active: layer.visible && clipSample.active,
+      localTime: clipSample.localTime,
+      sourceTime: clipSample.sourceTime,
+    };
+  });
+
+  return {
+    timelineTime: sampleTime,
+    layers,
+    activeLayers: layers.filter((sample) => sample.active),
+  };
 }
 
 export function insertSceneLayer(

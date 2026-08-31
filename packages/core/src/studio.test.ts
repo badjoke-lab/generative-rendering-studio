@@ -4,11 +4,13 @@ import {
   createSceneLayer,
   createSourceBoundLayerClip,
   createStudioScene,
+  getStudioSceneTimelineDuration,
   insertSceneLayer,
   moveSceneLayer,
   removeSceneLayer,
   sampleLayerClip,
   sampleSourceBoundLayerClip,
+  sampleStudioSceneTimeline,
   setSceneLayerClip,
   updateSceneLayer,
 } from "./studio";
@@ -103,6 +105,61 @@ describe("scene layer stack", () => {
       sourceTime: 1.5,
       sourceProgress: 0.75,
     });
+  });
+
+  it("derives finite scene duration from the furthest placed clip without making untimed layers finite", () => {
+    const scene = createStudioScene("timeline", [
+      layer("background"),
+      createSceneLayer({
+        id: "clip-a",
+        sourceId: "source-a",
+        renderer: "point",
+        clip: { timelineStart: 1, duration: 2, sourceStart: 4 },
+      }),
+      createSceneLayer({
+        id: "clip-b",
+        sourceId: "source-b",
+        renderer: "glyph",
+        visible: false,
+        clip: { timelineStart: 4.5, duration: 1.5, sourceStart: 0 },
+      }),
+    ]);
+
+    expect(getStudioSceneTimelineDuration(scene)).toBe(6);
+    expect(getStudioSceneTimelineDuration(createStudioScene("still", [layer("background")]))).toBe(0);
+  });
+
+  it("samples all scene layers in stack order and exposes only visible active layers", () => {
+    const background = layer("background");
+    const clipA = createSceneLayer({
+      id: "clip-a",
+      sourceId: "source-a",
+      renderer: "point",
+      clip: { timelineStart: 1, duration: 2, sourceStart: 4 },
+    });
+    const hiddenClip = createSceneLayer({
+      id: "hidden",
+      sourceId: "source-hidden",
+      renderer: "glyph",
+      visible: false,
+      clip: { timelineStart: 0, duration: 10, sourceStart: 2 },
+    });
+    const scene = createStudioScene("scene", [background, clipA, hiddenClip]);
+
+    const before = sampleStudioSceneTimeline(scene, -5);
+    expect(before.timelineTime).toBe(0);
+    expect(before.layers.map(({ layer: sampledLayer }) => sampledLayer.id)).toEqual(["background", "clip-a", "hidden"]);
+    expect(before.activeLayers.map(({ layer: sampledLayer }) => sampledLayer.id)).toEqual(["background"]);
+    expect(before.layers[1]).toMatchObject({ active: false, localTime: 0, sourceTime: 4 });
+    expect(before.layers[2]).toMatchObject({ active: false, localTime: 0, sourceTime: 2 });
+
+    const during = sampleStudioSceneTimeline(scene, 1.5);
+    expect(during.activeLayers.map(({ layer: sampledLayer }) => sampledLayer.id)).toEqual(["background", "clip-a"]);
+    expect(during.layers[1]).toMatchObject({ active: true, localTime: 0.5, sourceTime: 4.5 });
+
+    const after = sampleStudioSceneTimeline(scene, 3);
+    expect(after.activeLayers.map(({ layer: sampledLayer }) => sampledLayer.id)).toEqual(["background"]);
+    expect(after.layers[1]).toMatchObject({ active: false, localTime: 2, sourceTime: 6 });
   });
 
   it("preserves explicit layer order when inserting and rejects duplicate ids", () => {
