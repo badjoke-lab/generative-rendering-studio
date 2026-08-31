@@ -6,11 +6,6 @@ const movingSquareWebm = Buffer.from(
   "base64",
 );
 
-const redBlueTextureWebm = Buffer.from(
-  readFileSync("tests/fixtures/stage3-red-blue-texture.webm.base64", "utf8").trim(),
-  "base64",
-);
-
 async function primaryVideoTime(page: Page) {
   return page.locator("video.source-video-element").first().evaluate((video: HTMLVideoElement) => video.currentTime);
 }
@@ -63,7 +58,7 @@ test("webkit second-browser critical: Stage 5 shared video clip bounds playback,
   await page.locator('input[data-source-kind="video-texture"]').setInputFiles({
     name: "stage5-clip-texture.webm",
     mimeType: "video/webm",
-    buffer: redBlueTextureWebm,
+    buffer: movingSquareWebm,
   });
   await expect(page.locator('[data-source-role="texture"]')).toBeVisible();
   await expect.poll(() => auxiliaryVideoProgress(page, 2)).toBeCloseTo(0.5, 1);
