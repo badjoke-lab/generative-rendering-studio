@@ -13,6 +13,7 @@ import {
   createMorphProgressTrack,
   createMotionStrengthTrack,
   createNumericKeyframe,
+  createSourceBoundLayerClip,
   morphMappingToFloat32,
   pointFieldToFloat32,
   sampleCameraTrack,
@@ -20,6 +21,7 @@ import {
   sampleMorphProgressTrack,
   sampleMotionStrengthTrack,
   sampleRasterToPointField,
+  sampleSourceBoundLayerClip,
   type KeyframeEasing,
   type MorphEasing,
   type PointField,
@@ -30,6 +32,7 @@ import { OriginalPreview } from "./canvas/OriginalPreview";
 import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
 import { composeCanvasStack } from "./export/composeCanvasLayers";
+import { VideoClipPanel } from "./studio/VideoClipPanel";
 import { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
 import { useLocale, type Locale } from "./i18n";
@@ -178,6 +181,8 @@ function App() {
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoTime, setVideoTime] = useState(0);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoClipIn, setVideoClipIn] = useState(0);
+  const [videoClipOut, setVideoClipOut] = useState(0);
   const [videoCompositeOriginal, setVideoCompositeOriginal] = useState(false);
   const [videoOriginalOpacity, setVideoOriginalOpacity] = useState(0.55);
   const [videoOriginalOpacityKeyframesEnabled, setVideoOriginalOpacityKeyframesEnabled] = useState(false);
@@ -314,6 +319,8 @@ function App() {
     setVideoPlaying(false);
     setVideoDuration(0);
     setVideoTime(0);
+    setVideoClipIn(0);
+    setVideoClipOut(0);
     setVideoCompositeOriginal(false);
     setVideoOriginalOpacityKeyframesEnabled(false);
     setVideoBlendMode("normal");
@@ -479,6 +486,14 @@ function App() {
       if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
     };
     const tick = (now: number) => {
+      if (videoClipOut > videoClipIn && video.currentTime >= videoClipOut - 0.005) {
+        video.pause();
+        video.currentTime = videoClipOut;
+        setVideoPlaying(false);
+        setVideoTime(videoClipOut);
+        if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(videoClipOut / video.duration);
+        return;
+      }
       if (video.paused || video.ended) {
         setVideoPlaying(false);
         captureCurrentVideoFrame();
@@ -492,11 +507,19 @@ function App() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [sourceKind, videoPlaying]);
+  }, [sourceKind, videoClipIn, videoClipOut, videoPlaying]);
 
   const isProceduralSource = sourceKind === "procedural";
   const hasSource = Boolean(raster || (isProceduralSource && field));
   const isVideoSource = sourceKind === "video";
+  const videoClip = useMemo(
+    () => videoDuration > 0
+      ? createSourceBoundLayerClip({ sourceStart: videoClipIn, duration: Math.max(0.001, videoClipOut - videoClipIn) }, videoDuration)
+      : undefined,
+    [videoClipIn, videoClipOut, videoDuration],
+  );
+  const videoClipDuration = videoClip?.duration ?? 0;
+  const videoClipEnd = videoClip ? Math.min(videoDuration, videoClip.sourceStart + videoClip.duration) : 0;
   const densityAdjustedField = useMemo(() => {
     if (!field || !isProceduralSource) return field;
     const visibleCount = Math.max(16, Math.min(field.samples.length, Math.round(field.samples.length * density / 100)));
@@ -533,14 +556,14 @@ function App() {
   const videoOriginalOpacityTrack = useMemo(
     () => createLayerOpacityTrack("video-original-opacity", "video-original", [
       createNumericKeyframe(0, videoOriginalOpacityStart, videoOriginalOpacityEasing),
-      createNumericKeyframe(Math.max(0.001, videoDuration), videoOriginalOpacityEnd),
+      createNumericKeyframe(Math.max(0.001, videoClipDuration), videoOriginalOpacityEnd),
     ]),
-    [videoDuration, videoOriginalOpacityEasing, videoOriginalOpacityEnd, videoOriginalOpacityStart],
+    [videoClipDuration, videoOriginalOpacityEasing, videoOriginalOpacityEnd, videoOriginalOpacityStart],
   );
   const videoOriginalOpacityAutomationActive =
-    isVideoComposite && videoOriginalOpacityKeyframesEnabled && videoDuration > 0;
+    isVideoComposite && videoOriginalOpacityKeyframesEnabled && videoClipDuration > 0;
   const effectiveVideoOriginalOpacity = videoOriginalOpacityAutomationActive
-    ? sampleLayerOpacityTrack(videoOriginalOpacityTrack, videoTime) ?? videoOriginalOpacity
+    ? sampleLayerOpacityTrack(videoOriginalOpacityTrack, Math.max(0, videoTime - (videoClip?.sourceStart ?? 0))) ?? videoOriginalOpacity
     : videoOriginalOpacity;
   const motionStrengthTrack = useMemo(
     () => createMotionStrengthTrack("motion-strength", [
@@ -613,7 +636,6 @@ function App() {
   const effectiveCameraZoom = sampledCamera?.zoom ?? cameraZoom;
   const effectiveCameraRotation = sampledCamera?.rotation ?? cameraRotation;
 
-
   useEffect(() => {
     if (!motionTimelinePlaying || !parameterTimelineActive) return;
     const start = performance.now() - motionTimelineTime * 1000;
@@ -682,10 +704,13 @@ function App() {
       });
       await waitForVideoFramePresentation(video);
       const pixels = rasterizeVideoElement(video);
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
       setSourceKind("video");
       setRaster(pixels);
       setSourceLabel(file.name);
-      setVideoDuration(Number.isFinite(video.duration) ? video.duration : 0);
+      setVideoDuration(duration);
+      setVideoClipIn(0);
+      setVideoClipOut(duration);
       setVideoTime(video.currentTime);
       setSourceDetail(`${t("source.video")} · ${video.videoWidth} × ${video.videoHeight}${Number.isFinite(video.duration) ? ` · ${video.duration.toFixed(2)} ${t("morph.seconds")}` : ""}`);
     } catch {
@@ -865,21 +890,21 @@ function App() {
     if (rendererMode === "original") setRendererMode("point");
   };
 
-  const seekVideo = (progress: number) => {
+  const seekVideoSourceTime = (sourceTime: number) => {
     const video = videoElement.current;
     if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
     video.pause();
     setVideoPlaying(false);
-    const clampedProgress = Math.min(1, Math.max(0, progress));
-    const nextTime = clampedProgress * video.duration;
+    const nextTime = Math.min(video.duration, Math.max(0, sourceTime));
     setVideoTime(nextTime);
-    syncAuxiliaryVideos(clampedProgress);
+    syncAuxiliaryVideos(nextTime / video.duration);
     if (Math.abs(video.currentTime - nextTime) < 0.001) {
       try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
       return;
     }
     const onSeeked = () => {
       void waitForVideoFramePresentation(video).then(() => {
+        setVideoTime(video.currentTime);
         try { setRaster(rasterizeVideoElement(video)); } catch { /* keep last good frame */ }
         if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
       });
@@ -888,10 +913,50 @@ function App() {
     video.currentTime = nextTime;
   };
 
-  const playVideo = async () => {
+  const seekVideo = (progress: number) => {
+    if (!videoClip || videoDuration <= 0) return;
+    const clampedProgress = Math.min(1, Math.max(0, progress));
+    const sample = sampleSourceBoundLayerClip(videoClip, clampedProgress * videoClip.duration, videoDuration);
+    seekVideoSourceTime(sample.sourceTime);
+  };
+
+  const changeVideoClipIn = (seconds: number) => {
+    if (videoDuration <= 0) return;
+    const minimumGap = Math.min(0.01, videoDuration);
+    const nextIn = Math.min(Math.max(0, seconds), Math.max(0, videoClipOut - minimumGap));
+    setVideoClipIn(nextIn);
     const video = videoElement.current;
     if (!video) return;
-    if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.02)) video.currentTime = 0;
+    if (video.currentTime < nextIn || video.currentTime > videoClipOut) seekVideoSourceTime(nextIn);
+    else {
+      video.pause();
+      setVideoPlaying(false);
+    }
+  };
+
+  const changeVideoClipOut = (seconds: number) => {
+    if (videoDuration <= 0) return;
+    const minimumGap = Math.min(0.01, videoDuration);
+    const nextOut = Math.max(Math.min(videoDuration, seconds), Math.min(videoDuration, videoClipIn + minimumGap));
+    setVideoClipOut(nextOut);
+    const video = videoElement.current;
+    if (!video) return;
+    if (video.currentTime > nextOut || video.currentTime < videoClipIn) seekVideoSourceTime(nextOut);
+    else {
+      video.pause();
+      setVideoPlaying(false);
+    }
+  };
+
+  const playVideo = async () => {
+    const video = videoElement.current;
+    if (!video || !videoClip) return;
+    const clipStart = videoClip.sourceStart;
+    const clipEnd = videoClipEnd;
+    if (video.currentTime < clipStart - 0.005 || video.currentTime >= clipEnd - 0.02 || video.ended) {
+      video.currentTime = clipStart;
+      setVideoTime(clipStart);
+    }
     if (Number.isFinite(video.duration) && video.duration > 0) syncAuxiliaryVideos(video.currentTime / video.duration);
     try {
       await video.play();
@@ -1006,14 +1071,14 @@ function App() {
       ? `${animationCapability.preferredExtension.toUpperCase()} · ${animationCapability.preferredMimeType ?? "MediaRecorder"}`
       : t("export.animationBrowserDefault")
     : t("export.animationUnsupported");
-  const transportProgress = isVideoSource && videoDuration > 0
-    ? (videoTime / videoDuration) * 100
+  const transportProgress = isVideoSource && videoClip && videoClipDuration > 0
+    ? Math.min(100, Math.max(0, ((videoTime - videoClip.sourceStart) / videoClipDuration) * 100))
     : parameterTimelineActive
       ? (motionTimelineTime / parameterTimelineDuration) * 100
       : morphProgress * 100;
   const transportPlaying = isVideoSource ? videoPlaying : parameterTimelineActive ? motionTimelinePlaying : morphPlaying;
   const transportCanUse = isVideoSource
-    ? hasSource && videoDuration > 0
+    ? hasSource && videoClipDuration > 0
     : parameterTimelineActive
       ? hasSource && (cameraTimelineActive || rendererMode !== "original")
       : canMorph;
@@ -1158,6 +1223,22 @@ function App() {
       </section>
 
       <aside className="inspector-panel">
+        {isVideoSource && <VideoClipPanel
+          disabled={animationExporting}
+          duration={videoDuration}
+          inPoint={videoClip?.sourceStart ?? 0}
+          outPoint={videoClipEnd}
+          labels={{
+            title: t("video.clipTitle"),
+            summary: t("video.clipSummary"),
+            inPoint: t("video.clipIn"),
+            outPoint: t("video.clipOut"),
+            range: t("video.clipRange"),
+            seconds: t("morph.seconds"),
+          }}
+          onInPointChange={changeVideoClipIn}
+          onOutPointChange={changeVideoClipOut}
+        />}
         {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel
           disabled={animationExporting}
           originalVisible={videoCompositeOriginal}
@@ -1189,7 +1270,7 @@ function App() {
         {isVideoSource && rendererMode !== "original" && videoCompositeOriginal && <section className="inspector-section" data-stage5-layer-opacity-keyframes="true">
           <h2>{t("timeline.layerOpacity")}</h2>
           <p>{t("timeline.layerOpacityHint")}</p>
-          <div className="toggle-row"><span>{t("timeline.layerOpacityAnimate")}</span><button aria-label={t("timeline.layerOpacityToggle")} disabled={animationExporting || videoDuration <= 0} className={`toggle ${videoOriginalOpacityKeyframesEnabled ? "on" : ""}`} aria-pressed={videoOriginalOpacityKeyframesEnabled} onClick={() => setVideoOriginalOpacityKeyframesEnabled((value) => !value)} /></div>
+          <div className="toggle-row"><span>{t("timeline.layerOpacityAnimate")}</span><button aria-label={t("timeline.layerOpacityToggle")} disabled={animationExporting || videoClipDuration <= 0} className={`toggle ${videoOriginalOpacityKeyframesEnabled ? "on" : ""}`} aria-pressed={videoOriginalOpacityKeyframesEnabled} onClick={() => setVideoOriginalOpacityKeyframesEnabled((value) => !value)} /></div>
           {videoOriginalOpacityKeyframesEnabled && <>
             <label>{t("timeline.startOpacity")}<div className="range-row"><input aria-label={t("timeline.startOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityStart * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityStart(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityStart * 100)}%</output></div></label>
             <label>{t("timeline.endOpacity")}<div className="range-row"><input aria-label={t("timeline.endOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityEnd * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityEnd(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityEnd * 100)}%</output></div></label>
@@ -1220,7 +1301,7 @@ function App() {
             <label>{t("camera.keyframeEasing")}<select aria-label={t("camera.keyframeEasing")} value={cameraKeyframeEasing} disabled={animationExporting} onChange={(event) => setCameraKeyframeEasing(event.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label>
             <label>{t("camera.current")}<code>{Math.round(effectiveCameraPanX * 100)}% · {Math.round(effectiveCameraPanY * 100)}% · {Math.round(effectiveCameraZoom * 100)}% · {Math.round(effectiveCameraRotation)}°</code></label>
           </>}
-        </section>
+        </section>}
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">2</span><div><h2>{t("inspector.rendererMode")}</h2><p>{t("guide.renderHint")}</p></div></div><div className="renderer-segmented">{rendererModes.map((mode) => <button disabled={(morphEnabled && mode === "original") || (isProceduralSource && mode === "original") || animationExporting} className={rendererMode === mode ? "active" : ""} key={mode} onClick={() => setRendererMode(mode)}>{rendererLabel(mode)}</button>)}</div></section>
         <section className="inspector-section"><h2>{activeModeLabel} {t("inspector.settingsSuffix")}</h2><label>{t("inspector.input")}<code>{hasSource ? sourceLabel : t("source.notSelected")}</code></label>
           {rendererMode === "glyph" && <label>{t("inspector.characterSet")}<select value={glyphPreset} disabled={animationExporting} onChange={(e) => setGlyphPreset(e.target.value as GlyphPreset)}><option value="binary">01 (Binary)</option><option value="density">Density 8</option><option value="symbols">Symbols 6</option></select></label>}
