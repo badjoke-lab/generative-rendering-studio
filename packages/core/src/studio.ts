@@ -1,6 +1,19 @@
 import type { RendererKind } from "./index";
 
 export type BlendMode = "normal" | "add" | "multiply" | "screen";
+export type StudioSourceKind = "raster" | "video" | "text" | "svg" | "procedural";
+
+export interface StudioSourceAsset {
+  readonly id: string;
+  readonly kind: StudioSourceKind;
+  readonly duration?: number;
+}
+
+export interface StudioSourceAssetInput {
+  readonly id: string;
+  readonly kind: StudioSourceKind;
+  readonly duration?: number;
+}
 
 export interface LayerClip {
   readonly timelineStart: number;
@@ -49,6 +62,11 @@ export interface StudioScene {
   readonly layers: readonly SceneLayer[];
 }
 
+export interface ResolvedSceneLayerSource {
+  readonly layer: SceneLayer;
+  readonly source: StudioSourceAsset;
+}
+
 export interface SceneLayerTimelineSample {
   readonly layer: SceneLayer;
   readonly active: boolean;
@@ -86,6 +104,12 @@ function requireSourceDuration(sourceDuration: number): number {
   return sourceDuration;
 }
 
+function requireSourceId(sourceId: string): string {
+  const normalized = sourceId.trim();
+  if (!normalized) throw new Error("invalid-source-id");
+  return normalized;
+}
+
 function clampInsertIndex(index: number, length: number): number {
   if (!Number.isFinite(index)) return length;
   return Math.min(length, Math.max(0, Math.trunc(index)));
@@ -101,6 +125,36 @@ function sameLayerClip(a: LayerClip | undefined, b: LayerClip | undefined): bool
   if (a === b) return true;
   if (!a || !b) return false;
   return a.timelineStart === b.timelineStart && a.duration === b.duration && a.sourceStart === b.sourceStart;
+}
+
+export function createStudioSourceAsset(input: StudioSourceAssetInput): StudioSourceAsset {
+  const id = requireSourceId(input.id);
+  if (input.duration === undefined) return { id, kind: input.kind };
+  return { id, kind: input.kind, duration: requireSourceDuration(input.duration) };
+}
+
+export function indexStudioSourceAssets(
+  sources: readonly StudioSourceAsset[],
+): ReadonlyMap<string, StudioSourceAsset> {
+  const index = new Map<string, StudioSourceAsset>();
+  for (const source of sources) {
+    const sourceId = requireSourceId(source.id);
+    if (index.has(sourceId)) throw new Error(`duplicate-source-id:${sourceId}`);
+    index.set(sourceId, source);
+  }
+  return index;
+}
+
+export function resolveStudioSceneSources(
+  scene: Pick<StudioScene, "layers">,
+  sources: readonly StudioSourceAsset[],
+): readonly ResolvedSceneLayerSource[] {
+  const sourceIndex = indexStudioSourceAssets(sources);
+  return scene.layers.map((layer) => {
+    const source = sourceIndex.get(layer.sourceId);
+    if (!source) throw new Error(`missing-source-id:${layer.sourceId}`);
+    return { layer, source };
+  });
 }
 
 export function createLayerClip(input: LayerClipInput = {}): LayerClip {
