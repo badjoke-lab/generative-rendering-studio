@@ -2,6 +2,24 @@ import type { RendererKind } from "./index";
 
 export type BlendMode = "normal" | "add" | "multiply" | "screen";
 
+export interface LayerClip {
+  readonly timelineStart: number;
+  readonly duration: number;
+  readonly sourceStart: number;
+}
+
+export interface LayerClipInput {
+  readonly timelineStart?: number;
+  readonly duration?: number;
+  readonly sourceStart?: number;
+}
+
+export interface LayerClipSample {
+  readonly active: boolean;
+  readonly localTime: number;
+  readonly sourceTime: number;
+}
+
 export interface SceneLayer {
   readonly id: string;
   readonly sourceId: string;
@@ -9,6 +27,7 @@ export interface SceneLayer {
   readonly visible: boolean;
   readonly opacity: number;
   readonly blendMode: BlendMode;
+  readonly clip?: LayerClip;
 }
 
 export interface SceneLayerInput {
@@ -18,6 +37,7 @@ export interface SceneLayerInput {
   readonly visible?: boolean;
   readonly opacity?: number;
   readonly blendMode?: BlendMode;
+  readonly clip?: LayerClipInput;
 }
 
 export interface StudioScene {
@@ -25,9 +45,21 @@ export interface StudioScene {
   readonly layers: readonly SceneLayer[];
 }
 
+const MIN_CLIP_DURATION = 0.001;
+
 function clampOpacity(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return 1;
   return Math.min(1, Math.max(0, value));
+}
+
+function clampNonNegative(value: number | undefined, fallback = 0): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(0, value);
+}
+
+function normalizeClipDuration(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 1;
+  return Math.max(MIN_CLIP_DURATION, value);
 }
 
 function clampInsertIndex(index: number, length: number): number {
@@ -41,6 +73,34 @@ function clampMoveIndex(index: number, length: number): number {
   return Math.min(length - 1, Math.max(0, Math.trunc(index)));
 }
 
+function sameLayerClip(a: LayerClip | undefined, b: LayerClip | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.timelineStart === b.timelineStart && a.duration === b.duration && a.sourceStart === b.sourceStart;
+}
+
+export function createLayerClip(input: LayerClipInput = {}): LayerClip {
+  return {
+    timelineStart: clampNonNegative(input.timelineStart),
+    duration: normalizeClipDuration(input.duration),
+    sourceStart: clampNonNegative(input.sourceStart),
+  };
+}
+
+export function sampleLayerClip(clip: LayerClip | undefined, timelineTime: number): LayerClipSample {
+  const sampleTime = clampNonNegative(timelineTime);
+  if (!clip) return { active: true, localTime: sampleTime, sourceTime: sampleTime };
+
+  const localTime = sampleTime - clip.timelineStart;
+  const active = localTime >= 0 && localTime < clip.duration;
+  const boundedLocalTime = Math.min(clip.duration, Math.max(0, localTime));
+  return {
+    active,
+    localTime: boundedLocalTime,
+    sourceTime: clip.sourceStart + boundedLocalTime,
+  };
+}
+
 export function createSceneLayer(input: SceneLayerInput): SceneLayer {
   return {
     id: input.id,
@@ -49,6 +109,7 @@ export function createSceneLayer(input: SceneLayerInput): SceneLayer {
     visible: input.visible ?? true,
     opacity: clampOpacity(input.opacity),
     blendMode: input.blendMode ?? "normal",
+    ...(input.clip ? { clip: createLayerClip(input.clip) } : {}),
   };
 }
 
@@ -112,6 +173,30 @@ export function updateSceneLayer(
       updated.blendMode !== layer.blendMode ||
       updated.renderer !== layer.renderer;
     return changed ? updated : layer;
+  });
+  return changed ? next : layers;
+}
+
+export function setSceneLayerClip(
+  layers: readonly SceneLayer[],
+  layerId: string,
+  clip: LayerClipInput | null,
+): readonly SceneLayer[] {
+  let changed = false;
+  const next = layers.map((layer) => {
+    if (layer.id !== layerId) return layer;
+
+    if (clip === null) {
+      if (!layer.clip) return layer;
+      const { clip: _removedClip, ...withoutClip } = layer;
+      changed = true;
+      return withoutClip;
+    }
+
+    const normalizedClip = createLayerClip(clip);
+    if (sameLayerClip(layer.clip, normalizedClip)) return layer;
+    changed = true;
+    return { ...layer, clip: normalizedClip };
   });
   return changed ? next : layers;
 }
