@@ -14,6 +14,7 @@ const secondarySvg = Buffer.from(
   </svg>`,
 );
 
+// Exercise React's real range-input event path instead of relying on text-entry semantics.
 async function setRangeValue(locator: Locator, value: number) {
   await locator.evaluate((element, nextValue) => {
     if (!(element instanceof HTMLInputElement) || element.type !== "range") {
