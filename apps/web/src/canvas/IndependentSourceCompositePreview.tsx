@@ -38,7 +38,7 @@ export function IndependentSourceCompositePreview({
     <div
       className="independent-source-composite-preview"
       data-independent-source-composite="true"
-      data-secondary-visible={secondaryVisible ? "true" : "false"}
+      data-secondary-visible={secondaryRaster && secondaryVisible ? "true" : "false"}
       data-secondary-layer-order={secondaryOnTop ? "secondary-top" : "main-top"}
       data-secondary-blend-mode={secondaryBlendMode}
       style={{ position: "absolute", inset: 0, overflow: "hidden" }}
@@ -46,33 +46,35 @@ export function IndependentSourceCompositePreview({
       <div
         className="independent-source-main-layer"
         data-independent-layer="main"
-        style={{ ...layerStyle, zIndex: secondaryOnTop ? 1 : 2 }}
+        style={{ ...layerStyle, zIndex: secondaryRaster && secondaryOnTop ? 1 : 2 }}
       >
         {mainPreview}
       </div>
-      <div
-        className="independent-source-secondary-layer"
-        data-independent-layer="secondary"
-        style={{
-          ...layerStyle,
-          display: secondaryVisible ? "block" : "none",
-          opacity: Math.min(1, Math.max(0, secondaryOpacity)),
-          mixBlendMode: secondaryBlendMode,
-          zIndex: secondaryOnTop ? 2 : 1,
-          pointerEvents: "none",
-        }}
-      >
-        <OriginalPreview
-          canvasRef={secondaryCanvasRef}
-          raster={secondaryRaster}
-          background="transparent"
-          cameraPanX={cameraPanX}
-          cameraPanY={cameraPanY}
-          cameraZoom={cameraZoom}
-          cameraRotation={cameraRotation}
-          transparentBackground
-        />
-      </div>
+      {secondaryRaster && (
+        <div
+          className="independent-source-secondary-layer"
+          data-independent-layer="secondary"
+          style={{
+            ...layerStyle,
+            display: secondaryVisible ? "block" : "none",
+            opacity: Math.min(1, Math.max(0, secondaryOpacity)),
+            mixBlendMode: secondaryBlendMode,
+            zIndex: secondaryOnTop ? 2 : 1,
+            pointerEvents: "none",
+          }}
+        >
+          <OriginalPreview
+            canvasRef={secondaryCanvasRef}
+            raster={secondaryRaster}
+            background="transparent"
+            cameraPanX={cameraPanX}
+            cameraPanY={cameraPanY}
+            cameraZoom={cameraZoom}
+            cameraRotation={cameraRotation}
+            transparentBackground
+          />
+        </div>
+      )}
     </div>
   );
 }
