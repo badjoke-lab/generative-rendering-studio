@@ -1,0 +1,101 @@
+name: stage5-multitrack-once
+
+on:
+  push:
+    branches: [stage5/multitrack-timeline]
+    paths:
+      - .github/workflows/stage5-multitrack-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage5/multitrack-timeline
+          fetch-depth: 0
+      - name: Enable simultaneous Morph Camera Motion timeline tracks
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/src/main.tsx')
+          text = path.read_text()
+
+          replacements = [
+            ('const motionTimelineActive = motionKeyframesEnabled && motionMode !== "static" && !isVideoSource && !morphEnabled;',
+             'const motionTimelineActive = motionKeyframesEnabled && motionMode !== "static" && !isVideoSource;'),
+            ('const cameraTimelineActive = cameraKeyframesEnabled && !isVideoSource && !morphEnabled;',
+             'const cameraTimelineActive = cameraKeyframesEnabled && !isVideoSource;'),
+            ('const cameraRequested = cameraKeyframesEnabled && !morphEnabled;',
+             'const cameraRequested = cameraKeyframesEnabled;'),
+            ('const hasCameraAnimation = cameraKeyframesEnabled && !isVideoSource && !morphEnabled;',
+             'const hasCameraAnimation = cameraKeyframesEnabled && !isVideoSource;'),
+            ('disabled={animationExporting || isVideoSource || morphEnabled} className={`toggle ${cameraKeyframesEnabled ? "on" : ""}`}',
+             'disabled={animationExporting || isVideoSource} className={`toggle ${cameraKeyframesEnabled ? "on" : ""}`}'),
+            ('{cameraKeyframesEnabled && !isVideoSource && !morphEnabled && <>',
+             '{cameraKeyframesEnabled && !isVideoSource && <>'),
+            ('disabled={animationExporting || morphEnabled} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`}',
+             'disabled={animationExporting} className={`toggle ${motionKeyframesEnabled ? "on" : ""`}'),
+          ]
+          # The Motion replacement above needs to preserve the JSX closing brace exactly.
+          replacements[-1] = (
+            'disabled={animationExporting || morphEnabled} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`} aria-pressed={motionKeyframesEnabled}',
+            'disabled={animationExporting} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`} aria-pressed={motionKeyframesEnabled}',
+          )
+          replacements += [
+            ('{motionKeyframesEnabled && !morphEnabled && <>',
+             '{motionKeyframesEnabled && <>'),
+            ('if (next) setMotionTimelineTime(morphProgress * morphDuration); else setMorphProgress(timelineMorphProgress);',
+             'if (next && !motionTimelineActive && !cameraTimelineActive) setMotionTimelineTime(morphProgress * morphDuration); else if (!next) setMorphProgress(timelineMorphProgress);'),
+          ]
+          for old, new in replacements:
+            if old not in text:
+              raise SystemExit(f'expected block not found: {old[:120]}')
+            text = text.replace(old, new, 1)
+
+          duration_block = '''  const parameterTimelineDuration = Math.max(\n    0.001,\n    motionTimelineActive ? motionDuration : 0,\n    cameraTimelineActive ? cameraDuration : 0,\n    morphTimelineActive ? morphDuration : 0,\n  );'''
+          duration_new = duration_block + '''\n  const activeParameterTracks = [\n    morphTimelineActive ? "morph" : null,\n    cameraTimelineActive ? "camera" : null,\n    motionTimelineActive ? "motion-strength" : null,\n  ].filter((track): track is string => Boolean(track));\n  const multipleParameterTracksActive = activeParameterTracks.length > 1;\n  const parameterTimelineMode = multipleParameterTracksActive\n    ? "multi-track"\n    : morphTimelineActive\n      ? "morph-track"\n      : cameraTimelineActive\n        ? "camera"\n        : "motion-strength";\n  const parameterTimelineLabel = multipleParameterTracksActive\n    ? t("timeline.multitrack")\n    : morphTimelineActive\n      ? t("timeline.morphTrack")\n      : cameraTimelineActive\n        ? t("timeline.camera")\n        : t("timeline.motionStrength");\n  const parameterTimelinePositionLabel = multipleParameterTracksActive\n    ? t("timeline.multitrackPosition")\n    : cameraTimelineActive\n      ? t("timeline.cameraPosition")\n      : t("timeline.position");'''
+          if duration_block not in text:
+            raise SystemExit('parameter timeline duration block not found')
+          text = text.replace(duration_block, duration_new, 1)
+
+          old_transport = '''        <div className="transport-bar" data-timeline-mode={parameterTimelineActive ? morphTimelineActive ? "morph-track" : cameraTimelineActive ? motionTimelineActive ? "camera+motion" : "camera" : "motion-strength" : isVideoSource ? "video" : "idle"}>'''
+          new_transport = '''        <div className="transport-bar" data-timeline-mode={parameterTimelineActive ? parameterTimelineMode : isVideoSource ? "video" : "idle"} data-timeline-tracks={parameterTimelineActive ? activeParameterTracks.join("+") : isVideoSource ? "video" : ""}>'''
+          if old_transport not in text:
+            raise SystemExit('transport mode block not found')
+          text = text.replace(old_transport, new_transport, 1)
+
+          old_label = '''          <div className="transport-time">{parameterTimelineActive ? morphTimelineActive ? t("timeline.morphTrack") : cameraTimelineActive ? motionTimelineActive ? t("timeline.cameraAndMotion") : t("timeline.camera") : t("timeline.motionStrength") : isVideoComposite ? t("preview.videoComposite") : isVideoSource ? t("preview.video") : morphEnabled ? t("preview.morph") : t("preview.stage1")}</div>'''
+          new_label = '''          <div className="transport-time">{parameterTimelineActive ? parameterTimelineLabel : isVideoComposite ? t("preview.videoComposite") : isVideoSource ? t("preview.video") : morphEnabled ? t("preview.morph") : t("preview.stage1")}</div>'''
+          if old_label not in text:
+            raise SystemExit('transport label block not found')
+          text = text.replace(old_label, new_label, 1)
+
+          old_aria = '''          <input aria-label={parameterTimelineActive ? cameraTimelineActive ? t("timeline.cameraPosition") : t("timeline.position") : isVideoSource ? t("video.timelinePosition") : t("preview.timelinePosition")} type="range"'''
+          new_aria = '''          <input aria-label={parameterTimelineActive ? parameterTimelinePositionLabel : isVideoSource ? t("video.timelinePosition") : t("preview.timelinePosition")} type="range"'''
+          if old_aria not in text:
+            raise SystemExit('transport aria block not found')
+          text = text.replace(old_aria, new_aria, 1)
+
+          path.write_text(text)
+
+          for locale_path, marker, additions in [
+            (Path('apps/web/src/i18n/locales/en.ts'), '  "timeline.morphTrack": "Morph progress",', '\n  "timeline.multitrack": "Studio tracks",\n  "timeline.multitrackPosition": "Studio timeline position",'),
+            (Path('apps/web/src/i18n/locales/ja.ts'), '  "timeline.morphTrack": "モーフ進行",', '\n  "timeline.multitrack": "Studioトラック",\n  "timeline.multitrackPosition": "Studioタイムライン位置",'),
+          ]:
+            locale = locale_path.read_text()
+            if marker not in locale:
+              raise SystemExit(f'locale marker not found: {locale_path}')
+            locale_path.write_text(locale.replace(marker, marker + additions, 1))
+          PY
+          git rm .github/workflows/stage5-multitrack-once.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/web/src/main.tsx apps/web/src/i18n/locales/en.ts apps/web/src/i18n/locales/ja.ts
+          git commit -m "Stage 5: enable simultaneous timeline tracks"
+          git push origin HEAD:stage5/multitrack-timeline
