@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RasterPixels } from "@grs/core";
 import {
   createIndependentSourceLayerState,
@@ -10,21 +10,22 @@ import {
 
 export function useIndependentSourceLayers() {
   const [layers, setLayers] = useState<readonly IndependentSourceLayerState[]>([]);
+  const nextLayerOrdinal = useRef(2);
 
   const addLayer = useCallback((label: string, raster: RasterPixels) => {
-    setLayers((current) => {
-      const ordinal = current.length + 2;
-      const id = `source-layer-${ordinal}`;
-      return [
-        ...current,
-        createIndependentSourceLayerState({
-          id,
-          sourceId: `project-source-${ordinal}`,
-          label,
-          raster,
-        }),
-      ];
-    });
+    const ordinal = nextLayerOrdinal.current;
+    nextLayerOrdinal.current += 1;
+    const id = `source-layer-${ordinal}`;
+    setLayers((current) => [
+      ...current,
+      createIndependentSourceLayerState({
+        id,
+        sourceId: `project-source-${ordinal}`,
+        label,
+        raster,
+      }),
+    ]);
+    return id;
   }, []);
 
   const removeLayer = useCallback((layerId: string) => {
@@ -43,7 +44,6 @@ export function useIndependentSourceLayers() {
 
   return {
     layers,
-    setLayers,
     addLayer,
     removeLayer,
     patchLayer,
