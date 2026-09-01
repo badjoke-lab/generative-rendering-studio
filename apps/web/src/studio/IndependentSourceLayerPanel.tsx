@@ -1,4 +1,5 @@
 import type { BlendMode } from "@grs/core";
+import { SceneLayerStackRows } from "./SceneLayerStackRows";
 import "./video-layer-stack.css";
 
 export type IndependentSourceBlendMode = Extract<BlendMode, "normal" | "multiply" | "screen">;
@@ -69,54 +70,45 @@ export function IndependentSourceLayerPanel({
   onSecondaryTimelineStartChange: (seconds: number) => void;
   onSecondaryDurationChange: (seconds: number) => void;
 }) {
-  const mainRow = (
-    <div className="stage5-layer-row" data-layer-id="source-main" key="source-main">
-      <span className="stage5-layer-visibility on" aria-hidden="true">●</span>
-      <div className="stage5-layer-name">
-        <strong>{mainLabel}</strong>
-        <span>{labels.mainSource}</span>
-      </div>
-    </div>
-  );
-
-  const secondaryRow = (
-    <div className="stage5-layer-row" data-layer-id="source-secondary" key="source-secondary">
-      <button
-        type="button"
-        className={`stage5-layer-visibility ${secondaryVisible ? "on" : ""}`}
-        aria-label={labels.secondaryToggle}
-        aria-pressed={secondaryVisible}
-        disabled={disabled}
-        onClick={() => onSecondaryVisibleChange(!secondaryVisible)}
-      >
-        {secondaryVisible ? "●" : "○"}
-      </button>
-      <div className="stage5-layer-name">
-        <strong>{secondaryLabel}</strong>
-        <span>{labels.secondarySource}</span>
-      </div>
-      <input
-        aria-label={labels.secondaryOpacity}
-        type="range"
-        min="0"
-        max="100"
-        value={Math.round(secondaryOpacity * 100)}
-        disabled={disabled || !secondaryVisible}
-        onChange={(event) => onSecondaryOpacityChange(Number(event.target.value) / 100)}
-      />
-      <output>{Math.round(secondaryOpacity * 100)}%</output>
-      <select
-        aria-label={`${labels.blend}: ${secondaryLabel}`}
-        value={secondaryBlendMode}
-        disabled={disabled || !secondaryVisible}
-        onChange={(event) => onSecondaryBlendModeChange(event.target.value as IndependentSourceBlendMode)}
-      >
-        <option value="normal">{labels.normal}</option>
-        <option value="multiply">{labels.multiply}</option>
-        <option value="screen">{labels.screen}</option>
-      </select>
-    </div>
-  );
+  const rows = secondaryOnTop
+    ? [
+        {
+          id: "source-main",
+          label: mainLabel,
+          detail: labels.mainSource,
+          visible: true,
+          visibilityLocked: true,
+        },
+        {
+          id: "source-secondary",
+          label: secondaryLabel,
+          detail: labels.secondarySource,
+          visible: secondaryVisible,
+          visibilityLabel: labels.secondaryToggle,
+          opacity: secondaryOpacity,
+          opacityLabel: labels.secondaryOpacity,
+          blendMode: secondaryBlendMode,
+        },
+      ]
+    : [
+        {
+          id: "source-secondary",
+          label: secondaryLabel,
+          detail: labels.secondarySource,
+          visible: secondaryVisible,
+          visibilityLabel: labels.secondaryToggle,
+          opacity: secondaryOpacity,
+          opacityLabel: labels.secondaryOpacity,
+          blendMode: secondaryBlendMode,
+        },
+        {
+          id: "source-main",
+          label: mainLabel,
+          detail: labels.mainSource,
+          visible: true,
+          visibilityLocked: true,
+        },
+      ];
 
   const timingUnavailable = Boolean(disabled || timingDisabled);
 
@@ -127,7 +119,7 @@ export function IndependentSourceLayerPanel({
           <h2>{labels.title}</h2>
           <p>{labels.summary}</p>
         </div>
-        <span className="stage5-layer-count">2</span>
+        <span className="stage5-layer-count">{rows.length}</span>
       </div>
 
       <label className="stage5-layer-order-control">
@@ -143,7 +135,26 @@ export function IndependentSourceLayerPanel({
         </select>
       </label>
 
-      {secondaryOnTop ? <>{mainRow}{secondaryRow}</> : <>{secondaryRow}{mainRow}</>}
+      <SceneLayerStackRows
+        rows={rows}
+        disabled={disabled}
+        labels={{
+          opacity: labels.opacity,
+          blend: labels.blend,
+          normal: labels.normal,
+          multiply: labels.multiply,
+          screen: labels.screen,
+        }}
+        onVisibleChange={(layerId, visible) => {
+          if (layerId === "source-secondary") onSecondaryVisibleChange(visible);
+        }}
+        onOpacityChange={(layerId, opacity) => {
+          if (layerId === "source-secondary") onSecondaryOpacityChange(opacity);
+        }}
+        onBlendModeChange={(layerId, blendMode) => {
+          if (layerId === "source-secondary") onSecondaryBlendModeChange(blendMode);
+        }}
+      />
 
       <div className="stage5-layer-timing" data-stage5-layer-timing={secondaryTimingEnabled ? "on" : "off"}>
         <div className="toggle-row">
