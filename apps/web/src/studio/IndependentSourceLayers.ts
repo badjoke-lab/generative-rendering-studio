@@ -59,6 +59,27 @@ export function updateIndependentSourceLayer(
   return layers.map((layer) => layer.id === layerId ? update(layer) : layer);
 }
 
+export function patchIndependentSourceLayer(
+  layers: readonly IndependentSourceLayerState[],
+  layerId: string,
+  patch: Partial<Omit<IndependentSourceLayerState, "id" | "sourceId" | "raster">>,
+) {
+  return updateIndependentSourceLayer(layers, layerId, (layer) => ({
+    ...layer,
+    ...patch,
+    opacity: patch.opacity === undefined ? layer.opacity : Math.max(0, Math.min(1, patch.opacity)),
+    timelineStart: patch.timelineStart === undefined ? layer.timelineStart : Math.max(0, patch.timelineStart),
+    duration: patch.duration === undefined ? layer.duration : Math.max(0.25, patch.duration),
+  }));
+}
+
+export function appendIndependentSourceLayer(
+  layers: readonly IndependentSourceLayerState[],
+  layer: IndependentSourceLayerState,
+) {
+  return [...layers, layer];
+}
+
 export function removeIndependentSourceLayer(
   layers: readonly IndependentSourceLayerState[],
   layerId: string,
