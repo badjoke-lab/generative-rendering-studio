@@ -38,7 +38,7 @@ import { IndependentSourceCompositePreview } from "./canvas/IndependentSourceCom
 import { OriginalPreview } from "./canvas/OriginalPreview";
 import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
-import { composeCanvasStack } from "./export/composeCanvasLayers";
+import { composeCanvasStack, paintCanvasStack } from "./export/composeCanvasLayers";
 import { VideoClipPanel } from "./studio/VideoClipPanel";
 import { IndependentSourceLayerPanel, type IndependentSourceBlendMode } from "./studio/IndependentSourceLayerPanel";
 import { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";
@@ -1191,7 +1191,26 @@ function App() {
     const animateCamera = cameraRequested;
     if (!animateMorph && !animateMotion && !animateCamera) return;
     if (rendererMode === "original" && !animateCamera) return;
-    const capability = getCanvasRecordingCapability(canvas);
+
+    const secondaryCanvas = secondaryLayerCanvas.current;
+    const compositeRecordingCanvas = independentSourceComposition && secondaryCanvas
+      ? document.createElement("canvas")
+      : null;
+    const repaintAnimationComposite = compositeRecordingCanvas && independentSourceComposition && secondaryCanvas
+      ? () => paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) =>
+          layer.id === "source-secondary"
+            ? {
+                canvas: secondaryCanvas,
+                visible: layer.visible,
+                opacity: layer.opacity,
+                blendMode: layer.blendMode,
+              }
+            : { canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },
+        ))
+      : undefined;
+    repaintAnimationComposite?.();
+    const recordingCanvas = compositeRecordingCanvas ?? canvas;
+    const capability = getCanvasRecordingCapability(recordingCanvas);
     setAnimationCapability(capability);
     if (!capability.supported) {
       setAnimationExportError(t("export.animationUnsupported"));
@@ -1215,15 +1234,17 @@ function App() {
       : motionDuration;
     try {
       const result = await recordCanvasAnimation({
-        canvas,
+        canvas: recordingCanvas,
         durationSeconds,
         frameRate: 60,
         onProgress: animateParameterTimeline ? (progress) => setMotionTimelineTime(progress * durationSeconds) : () => {},
+        onFrame: repaintAnimationComposite ? () => repaintAnimationComposite() : undefined,
       });
       const animationKind = animateCamera ? animateMotion ? `${motionMode}-camera-motion` : "camera-motion" : `${motionMode}-motion`;
+      const compositeSuffix = independentSourceComposition ? "-composite" : "";
       const fileName = animateMorph
-        ? `${safeFileStem(sourceLabel)}-to-${safeFileStem(morphLabel || "morph")}-${rendererMode}.${result.extension}`
-        : `${safeFileStem(sourceLabel)}-${rendererMode}-${animationKind}.${result.extension}`;
+        ? `${safeFileStem(sourceLabel)}-to-${safeFileStem(morphLabel || "morph")}-${rendererMode}${compositeSuffix}.${result.extension}`
+        : `${safeFileStem(sourceLabel)}-${rendererMode}-${animationKind}${compositeSuffix}.${result.extension}`;
       downloadBlob(result.blob, fileName);
       setAnimationExportSucceeded(true);
     } catch (error) {
@@ -1245,7 +1266,6 @@ function App() {
     && !isVideoSource
     && (rendererMode !== "original" || hasCameraAnimation)
     && animationCapability.supported
-    && !secondaryRaster
     && !animationExporting;
   const cameraAnimationExport = hasCameraAnimation && !(canMorph && morphEnabled);
   const motionOnlyExport = hasMotionAnimation && !hasCameraAnimation && !(canMorph && morphEnabled);
@@ -1425,7 +1445,7 @@ function App() {
         {rendererMode !== "original" && <section className="inspector-section" data-stage5-motion="true" data-motion-strength={effectiveMotionStrength.toFixed(3)}><h2>{t("motion.title")}</h2><p>{t("motion.hint")}</p><label>{t("motion.type")}<select aria-label={t("motion.type")} value={motionMode} disabled={animationExporting} onChange={(e) => { const next = e.target.value as PreviewMotionMode; setMotionMode(next); if (next === "static") { setMotionTimelinePlaying(false); setMotionTimelineTime(0); } }}><option value="static">{t("motion.static")}</option><option value="pulse">{t("motion.pulse")}</option><option value="drift">{t("motion.drift")}</option></select></label>{motionMode !== "static" && <><label>{t("motion.strength")}<div className="range-row"><input aria-label={t("motion.strength")} type="range" min="0" max="200" value={Math.round(effectiveMotionStrength * 100)} disabled={animationExporting || motionKeyframesEnabled} onChange={(e) => setMotionStrength(Number(e.target.value) / 100)} /><output>{Math.round(effectiveMotionStrength * 100)}%</output></div></label><label>{t("motion.speed")}<div className="range-row"><input aria-label={t("motion.speed")} type="range" min="25" max="300" value={Math.round(motionSpeed * 100)} disabled={animationExporting} onChange={(e) => setMotionSpeed(Number(e.target.value) / 100)} /><output>{motionSpeed.toFixed(2)}×</output></div></label><label>{t("motion.duration")}<div className="range-row"><input aria-label={t("motion.duration")} type="range" min="1" max="12" step="0.5" value={motionDuration} disabled={animationExporting} onChange={(e) => { setMotionDuration(Number(e.target.value)); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /><output>{motionDuration} {t("morph.seconds")}</output></div></label><div className="toggle-row"><span>{t("motion.keyframes")}</span><button aria-label={t("motion.keyframesToggle")} disabled={animationExporting} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`} aria-pressed={motionKeyframesEnabled} onClick={() => { const next = !motionKeyframesEnabled; setMotionKeyframesEnabled(next); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /></div>{motionKeyframesEnabled && <><p>{t("motion.keyframesHint")}</p><label>{t("motion.startStrength")}<div className="range-row"><input aria-label={t("motion.startStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthStart * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthStart(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthStart * 100)}%</output></div></label><label>{t("motion.endStrength")}<div className="range-row"><input aria-label={t("motion.endStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthEnd * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthEnd(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthEnd * 100)}%</output></div></label><label>{t("motion.keyframeEasing")}<select aria-label={t("motion.keyframeEasing")} value={motionKeyframeEasing} disabled={animationExporting} onChange={(e) => setMotionKeyframeEasing(e.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label></>}</>}</section>}
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); setMotionTimelinePlaying(false); if (next && !motionTimelineActive && !cameraTimelineActive) setMotionTimelineTime(morphProgress * morphDuration); else if (!next) setMorphProgress(timelineMorphProgress); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input aria-label={t("morph.progress")} type="range" min="0" max="100" value={Math.round(timelineMorphProgress * 100)} disabled={animationExporting} onChange={(e) => { const progress = Number(e.target.value) / 100; setMorphPlaying(false); setMotionTimelinePlaying(false); setMorphProgress(progress); if (morphTimelineActive) setMotionTimelineTime(progress * morphDuration); }} /><output>{Math.round(timelineMorphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); setMorphPlaying(false); if (timelineMorphProgress >= 1) { setMorphProgress(0); setMotionTimelineTime(0); } setMotionTimelinePlaying((value) => !value); }}>{morphTimelineActive && motionTimelinePlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">4</span><div><h2>{t("export.still")}</h2><p>{isVideoSource ? t("guide.videoStillExportHint") : t("guide.exportHint")}</p></div></div><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={!hasSource || animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
-        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : secondaryRaster ? t("export.layerAnimationLater") : animationExportError ?? (animationExportSucceeded ? (cameraAnimationExport ? t("export.cameraAnimationSaved") : motionOnlyExport ? t("export.motionAnimationSaved") : t("export.animationSaved")) : (cameraAnimationExport ? t("export.cameraAnimationHint") : motionOnlyExport ? t("export.motionAnimationHint") : t("export.animationHint")))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportShortAnimation()}>{animationExporting ? t("export.animationRecording") : cameraAnimationExport ? t("export.cameraAnimationButton") : motionOnlyExport ? t("export.motionAnimationButton") : t("export.animationButton")}</button></section>
+        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : animationExportError ?? (animationExportSucceeded ? (cameraAnimationExport ? t("export.cameraAnimationSaved") : motionOnlyExport ? t("export.motionAnimationSaved") : t("export.animationSaved")) : (cameraAnimationExport ? t("export.cameraAnimationHint") : motionOnlyExport ? t("export.motionAnimationHint") : t("export.animationHint")))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportShortAnimation()}>{animationExporting ? t("export.animationRecording") : cameraAnimationExport ? t("export.cameraAnimationButton") : motionOnlyExport ? t("export.motionAnimationButton") : t("export.animationButton")}</button></section>
         <section className="inspector-section local-processing-note"><strong>{t("status.localProcessing")}</strong><p>{t("status.localProcessingDetail")}</p><code>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</code></section>
       </aside>
     </main>

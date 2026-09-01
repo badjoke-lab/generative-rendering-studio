@@ -43,11 +43,13 @@ export async function recordCanvasAnimation({
   durationSeconds,
   frameRate = 60,
   onProgress,
+  onFrame,
 }: {
   canvas: HTMLCanvasElement;
   durationSeconds: number;
   frameRate?: number;
   onProgress: (progress: number) => void;
+  onFrame?: (progress: number) => void;
 }): Promise<CanvasRecordingResult> {
   if (!canRecordCanvasAnimation(canvas)) throw new Error("animation-export-unsupported");
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) throw new Error("animation-export-invalid-duration");
@@ -87,19 +89,34 @@ export async function recordCanvasAnimation({
   try {
     onProgress(0);
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    onFrame?.(0);
     recorder.start(250);
     const start = performance.now();
     const durationMs = Math.max(250, durationSeconds * 1000);
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       const tick = (now: number) => {
         const progress = Math.min(1, (now - start) / durationMs);
         onProgress(progress);
-        if (progress >= 1) {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        } else {
-          requestAnimationFrame(tick);
+        if (!onFrame) {
+          if (progress >= 1) {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          } else {
+            requestAnimationFrame(tick);
+          }
+          return;
         }
+
+        requestAnimationFrame((nextNow) => {
+          try {
+            onFrame(progress);
+          } catch {
+            reject(new Error("animation-export-frame-failed"));
+            return;
+          }
+          if (progress >= 1) requestAnimationFrame(() => resolve());
+          else tick(nextNow);
+        });
       };
       requestAnimationFrame(tick);
     });
@@ -108,6 +125,7 @@ export async function recordCanvasAnimation({
     recorder.stop();
     const result = await stopped;
     onProgress(1);
+    onFrame?.(1);
     return result;
   } finally {
     if (recorder.state !== "inactive") recorder.stop();
