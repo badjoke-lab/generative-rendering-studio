@@ -2,27 +2,15 @@ name: ci
 
 on:
   push:
-    branches: [main, stage5/second-source-animation-export]
+    branches: [main]
   pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply bounded second-source animation patch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/stage5/second-source-animation-export'
-        run: |
-          node scripts/stage5/patch-second-source-animation-export.mjs
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Stage 5: wire second source animation export"
-          git push origin HEAD:stage5/second-source-animation-export
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
