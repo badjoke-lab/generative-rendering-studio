@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 const path = "apps/web/src/main.tsx";
+const selfPath = "scripts/stage5/patch-second-source-animation-export.mjs";
 let source = readFileSync(path, "utf8");
 
 function replaceExact(label, before, after) {
@@ -49,3 +50,6 @@ replaceExact(
 );
 
 writeFileSync(path, source);
+
+writeFileSync(".github/workflows/ci.yml", `name: ci\n\non:\n  push:\n    branches: [main]\n  pull_request:\n  workflow_dispatch:\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: pnpm/action-setup@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - run: pnpm install --no-frozen-lockfile\n      - run: pnpm typecheck\n      - run: pnpm test\n      - run: pnpm build\n      - name: Install Chromium for browser smoke\n        run: pnpm exec playwright install --with-deps chromium\n      - name: Run Development Preview Chromium smoke\n        run: pnpm test:browser --project=chromium\n      - name: Install WebKit for focused second-browser check\n        run: pnpm exec playwright install --with-deps webkit\n      - name: Run focused WebKit release-candidate check\n        run: pnpm test:browser --project=webkit --grep "webkit second-browser critical"\n      - name: Upload Development Preview visual and output evidence\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: preview-evidence-\${{ github.sha }}\n          path: preview-evidence\n          if-no-files-found: warn\n          retention-days: 14\n      - name: Upload Playwright diagnostics\n        if: failure()\n        uses: actions/upload-artifact@v4\n        with:\n          name: playwright-diagnostics-\${{ github.sha }}\n          path: test-results\n          if-no-files-found: ignore\n          retention-days: 7\n      - name: Upload browser candidate\n        uses: actions/upload-artifact@v4\n        with:\n          name: browser-candidate-\${{ github.sha }}\n          path: apps/web/dist\n          if-no-files-found: error\n          retention-days: 14\n`);
+unlinkSync(selfPath);
