@@ -18,34 +18,56 @@ export interface IndependentSourceLayerLabels {
   readonly normal: string;
   readonly multiply: string;
   readonly screen: string;
+  readonly timing: string;
+  readonly timingToggle: string;
+  readonly timingHint: string;
+  readonly timelineStart: string;
+  readonly timelineDuration: string;
+  readonly seconds: string;
 }
 
 export function IndependentSourceLayerPanel({
   disabled,
+  timingDisabled,
   mainLabel,
   secondaryLabel,
   secondaryVisible,
   secondaryOpacity,
   secondaryOnTop,
   secondaryBlendMode,
+  secondaryTimingEnabled,
+  secondaryTimelineStart,
+  secondaryDuration,
+  maxTimelineTime = 12,
   labels,
   onSecondaryVisibleChange,
   onSecondaryOpacityChange,
   onSecondaryOnTopChange,
   onSecondaryBlendModeChange,
+  onSecondaryTimingEnabledChange,
+  onSecondaryTimelineStartChange,
+  onSecondaryDurationChange,
 }: {
   disabled?: boolean;
+  timingDisabled?: boolean;
   mainLabel: string;
   secondaryLabel: string;
   secondaryVisible: boolean;
   secondaryOpacity: number;
   secondaryOnTop: boolean;
   secondaryBlendMode: IndependentSourceBlendMode;
+  secondaryTimingEnabled: boolean;
+  secondaryTimelineStart: number;
+  secondaryDuration: number;
+  maxTimelineTime?: number;
   labels: IndependentSourceLayerLabels;
   onSecondaryVisibleChange: (visible: boolean) => void;
   onSecondaryOpacityChange: (opacity: number) => void;
   onSecondaryOnTopChange: (secondaryOnTop: boolean) => void;
   onSecondaryBlendModeChange: (blendMode: IndependentSourceBlendMode) => void;
+  onSecondaryTimingEnabledChange: (enabled: boolean) => void;
+  onSecondaryTimelineStartChange: (seconds: number) => void;
+  onSecondaryDurationChange: (seconds: number) => void;
 }) {
   const mainRow = (
     <div className="stage5-layer-row" data-layer-id="source-main" key="source-main">
@@ -96,6 +118,8 @@ export function IndependentSourceLayerPanel({
     </div>
   );
 
+  const timingUnavailable = Boolean(disabled || timingDisabled);
+
   return (
     <section className="inspector-section stage5-layer-stack" data-stage5-layer-stack="independent-source">
       <div className="stage5-layer-heading">
@@ -120,6 +144,55 @@ export function IndependentSourceLayerPanel({
       </label>
 
       {secondaryOnTop ? <>{mainRow}{secondaryRow}</> : <>{secondaryRow}{mainRow}</>}
+
+      <div className="stage5-layer-timing" data-stage5-layer-timing={secondaryTimingEnabled ? "on" : "off"}>
+        <div className="toggle-row">
+          <span>{labels.timing}</span>
+          <button
+            type="button"
+            aria-label={labels.timingToggle}
+            className={`toggle ${secondaryTimingEnabled ? "on" : ""}`}
+            aria-pressed={secondaryTimingEnabled}
+            disabled={timingUnavailable}
+            onClick={() => onSecondaryTimingEnabledChange(!secondaryTimingEnabled)}
+          />
+        </div>
+        {secondaryTimingEnabled && !timingDisabled && <>
+          <p>{labels.timingHint}</p>
+          <label>
+            {labels.timelineStart}
+            <div className="range-row">
+              <input
+                aria-label={labels.timelineStart}
+                type="range"
+                min="0"
+                max={maxTimelineTime}
+                step="0.25"
+                value={secondaryTimelineStart}
+                disabled={disabled}
+                onChange={(event) => onSecondaryTimelineStartChange(Number(event.target.value))}
+              />
+              <output>{secondaryTimelineStart.toFixed(2)} {labels.seconds}</output>
+            </div>
+          </label>
+          <label>
+            {labels.timelineDuration}
+            <div className="range-row">
+              <input
+                aria-label={labels.timelineDuration}
+                type="range"
+                min="0.25"
+                max={maxTimelineTime}
+                step="0.25"
+                value={secondaryDuration}
+                disabled={disabled}
+                onChange={(event) => onSecondaryDurationChange(Number(event.target.value))}
+              />
+              <output>{secondaryDuration.toFixed(2)} {labels.seconds}</output>
+            </div>
+          </label>
+        </>}
+      </div>
     </section>
   );
 }
