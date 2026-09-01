@@ -64,8 +64,8 @@ patchFile("apps/web/src/main.tsx", [
   },
   {
     label: "still export timed visibility",
-    before: `                visible: layer.visible,\n                opacity: layer.opacity,\n                blendMode: layer.blendMode,`,
-    after: `                visible: effectiveIndependentSecondaryVisible,\n                opacity: layer.opacity,\n                blendMode: layer.blendMode,`,
+    before: `          layer.id === "source-secondary"\n            ? {\n                canvas: secondaryCanvas,\n                visible: layer.visible,\n                opacity: layer.opacity,\n                blendMode: layer.blendMode,\n              }\n            : { canvas: primaryExportCanvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },`,
+    after: `          layer.id === "source-secondary"\n            ? {\n                canvas: secondaryCanvas,\n                visible: effectiveIndependentSecondaryVisible,\n                opacity: layer.opacity,\n                blendMode: layer.blendMode,\n              }\n            : { canvas: primaryExportCanvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },`,
   },
   {
     label: "animation timing activation",
