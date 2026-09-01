@@ -7,8 +7,10 @@ export interface SceneLayerStackRow {
   readonly label: string;
   readonly detail: string;
   readonly visible: boolean;
+  readonly visibilityLabel?: string;
   readonly visibilityLocked?: boolean;
   readonly opacity?: number;
+  readonly opacityLabel?: string;
   readonly blendMode?: SceneLayerStackBlendMode;
 }
 
@@ -49,7 +51,7 @@ export function SceneLayerStackRows({
             <button
               type="button"
               className={`stage5-layer-visibility ${row.visible ? "on" : ""}`}
-              aria-label={row.label}
+              aria-label={row.visibilityLabel ?? row.label}
               aria-pressed={row.visible}
               disabled={disabled}
               onClick={() => onVisibleChange?.(row.id, !row.visible)}
@@ -63,7 +65,7 @@ export function SceneLayerStackRows({
           </div>
           {row.opacity !== undefined && onOpacityChange && <>
             <input
-              aria-label={`${labels.opacity}: ${row.label}`}
+              aria-label={row.opacityLabel ?? `${labels.opacity}: ${row.label}`}
               type="range"
               min="0"
               max="100"
