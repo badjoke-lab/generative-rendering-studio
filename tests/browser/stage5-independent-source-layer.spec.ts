@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const primarySvg = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100">
@@ -13,18 +13,6 @@ const secondarySvg = Buffer.from(
     <rect x="90" y="10" width="60" height="80" fill="rgb(255,32,32)"/>
   </svg>`,
 );
-
-// Exercise React's real range-input event path instead of relying on text-entry semantics.
-async function setRangeValue(locator: Locator, value: number) {
-  await locator.evaluate((element, nextValue) => {
-    if (!(element instanceof HTMLInputElement) || element.type !== "range") {
-      throw new Error("expected-range-input");
-    }
-    element.value = String(nextValue);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, value);
-}
 
 test("adds an independent second source layer and preserves it in still export", async ({ page }) => {
   await page.goto("/");
@@ -53,7 +41,7 @@ test("adds an independent second source layer and preserves it in still export",
   await expect(composite).toHaveAttribute("data-secondary-layer-order", "secondary-top");
   await expect(panel).toBeVisible();
 
-  await setRangeValue(panel.getByLabel("Independent source opacity"), 45);
+  await panel.getByLabel("Independent source opacity").fill("45");
   await expect(panel.locator('[data-layer-id="source-secondary"] output')).toHaveText("45%");
 
   await panel.getByLabel("Blend mode: secondary.svg").selectOption("screen");
@@ -68,7 +56,7 @@ test("adds an independent second source layer and preserves it in still export",
   await expect(composite).toHaveAttribute("data-secondary-visible", "false");
   await panel.getByRole("button", { name: "Toggle independent source visibility" }).click();
   await expect(composite).toHaveAttribute("data-secondary-visible", "true");
-  await setRangeValue(panel.getByLabel("Independent source opacity"), 100);
+  await panel.getByLabel("Independent source opacity").fill("100");
 
   const downloadPromise = page.waitForEvent("download");
   await page.locator("button.render-button").click();
