@@ -258,6 +258,9 @@ function App() {
   const [secondaryOpacity, setSecondaryOpacity] = useState(0.72);
   const [secondaryOnTop, setSecondaryOnTop] = useState(true);
   const [secondaryBlendMode, setSecondaryBlendMode] = useState<IndependentSourceBlendMode>("normal");
+  const [secondaryTimingEnabled, setSecondaryTimingEnabled] = useState(false);
+  const [secondaryTimelineStart, setSecondaryTimelineStart] = useState(0);
+  const [secondaryDuration, setSecondaryDuration] = useState(3);
   const [secondarySourceError, setSecondarySourceError] = useState<string | null>(null);
   const [morphLabel, setMorphLabel] = useState("");
   const [sourceError, setSourceError] = useState<string | null>(null);
@@ -518,6 +521,7 @@ function App() {
       visible: secondaryVisible,
       opacity: secondaryOpacity,
       blendMode: secondaryBlendMode,
+      ...(secondaryTimingEnabled ? { clip: { timelineStart: secondaryTimelineStart, duration: secondaryDuration } } : {}),
     });
     const scene = createStudioScene(
       "independent-source-scene",
@@ -542,10 +546,13 @@ function App() {
     hasSource,
     rendererMode,
     secondaryBlendMode,
+    secondaryDuration,
     secondaryOnTop,
     secondaryOpacity,
     secondaryRaster,
     secondarySourceLabel,
+    secondaryTimelineStart,
+    secondaryTimingEnabled,
     secondaryVisible,
     sourceKind,
     sourceLabel,
@@ -553,6 +560,18 @@ function App() {
   const independentSecondaryLayer = independentSourceComposition?.bindings.find(({ layer }) => layer.id === "source-secondary")?.layer;
   const independentSceneLayers = independentSourceComposition?.scene.layers ?? [];
   const independentSecondaryOnTop = independentSceneLayers[independentSceneLayers.length - 1]?.id === "source-secondary";
+  const independentSourceTimelineDuration = independentSourceComposition ? getStudioSceneTimelineDuration(independentSourceComposition.scene) : 0;
+  const independentLayerTimelineActive = Boolean(!isVideoSource && secondaryTimingEnabled && independentSecondaryLayer?.clip && independentSourceTimelineDuration > 0);
+  const independentSourceTimelineSample = useMemo(
+    () => independentSourceComposition && independentLayerTimelineActive
+      ? sampleStudioSceneTimeline(independentSourceComposition.scene, motionTimelineTime)
+      : undefined,
+    [independentLayerTimelineActive, independentSourceComposition, motionTimelineTime],
+  );
+  const independentSecondaryTimelineSample = independentSourceTimelineSample?.layers.find(({ layer }) => layer.id === "source-secondary");
+  const effectiveIndependentSecondaryVisible = Boolean(
+    independentSecondaryLayer?.visible && (!independentLayerTimelineActive || independentSecondaryTimelineSample?.active),
+  );
   const videoClip = useMemo(
     () => videoDuration > 0
       ? createSourceBoundLayerClip({
@@ -757,22 +776,24 @@ function App() {
     [cameraDuration, cameraKeyframeEasing, cameraPanXEnd, cameraPanXStart, cameraPanYEnd, cameraPanYStart, cameraRotationEnd, cameraRotationStart, cameraZoomEnd, cameraZoomStart],
   );
   const cameraTimelineActive = cameraKeyframesEnabled && !isVideoSource;
-  const parameterTimelineActive = motionTimelineActive || cameraTimelineActive || morphTimelineActive;
+  const parameterTimelineActive = motionTimelineActive || cameraTimelineActive || morphTimelineActive || independentLayerTimelineActive;
   const parameterTimelineDuration = Math.max(
     0.001,
     motionTimelineActive ? motionDuration : 0,
     cameraTimelineActive ? cameraDuration : 0,
     morphTimelineActive ? morphDuration : 0,
+    independentLayerTimelineActive ? independentSourceTimelineDuration : 0,
   );
   const activeParameterTracks = [
     morphTimelineActive ? "morph" : null,
     cameraTimelineActive ? "camera" : null,
     motionTimelineActive ? "motion-strength" : null,
+    independentLayerTimelineActive ? "layer-timing" : null,
   ].filter((track): track is string => Boolean(track));
   const multipleParameterTracksActive = activeParameterTracks.length > 1;
-  const parameterTimelineMode = multipleParameterTracksActive ? "multi-track" : morphTimelineActive ? "morph-track" : cameraTimelineActive ? "camera" : "motion-strength";
-  const parameterTimelineLabel = multipleParameterTracksActive ? t("timeline.multitrack") : morphTimelineActive ? t("timeline.morphTrack") : cameraTimelineActive ? t("timeline.camera") : t("timeline.motionStrength");
-  const parameterTimelinePositionLabel = multipleParameterTracksActive ? t("timeline.multitrackPosition") : cameraTimelineActive ? t("timeline.cameraPosition") : t("timeline.position");
+  const parameterTimelineMode = multipleParameterTracksActive ? "multi-track" : morphTimelineActive ? "morph-track" : cameraTimelineActive ? "camera" : independentLayerTimelineActive ? "layer-timing" : "motion-strength";
+  const parameterTimelineLabel = multipleParameterTracksActive ? t("timeline.multitrack") : morphTimelineActive ? t("timeline.morphTrack") : cameraTimelineActive ? t("timeline.camera") : independentLayerTimelineActive ? t("timeline.layerTiming") : t("timeline.motionStrength");
+  const parameterTimelinePositionLabel = multipleParameterTracksActive ? t("timeline.multitrackPosition") : cameraTimelineActive ? t("timeline.cameraPosition") : independentLayerTimelineActive ? t("timeline.layerTimingPosition") : t("timeline.position");
   const timelineMorphProgress = morphTimelineActive ? sampleMorphProgressTrack(morphProgressTrack, motionTimelineTime) ?? morphProgress : morphProgress;
   const easedProgress = applyMorphEasing(timelineMorphProgress, morphEasing);
   const effectiveMotionStrength = motionTimelineActive ? sampleMotionStrengthTrack(motionStrengthTrack, motionTimelineTime) ?? motionStrength : motionStrength;
@@ -826,6 +847,9 @@ function App() {
     setSecondaryOpacity(0.72);
     setSecondaryOnTop(true);
     setSecondaryBlendMode("normal");
+    setSecondaryTimingEnabled(false);
+    setSecondaryTimelineStart(0);
+    setSecondaryDuration(3);
     setSecondarySourceError(null);
   };
 
@@ -841,6 +865,9 @@ function App() {
       setSecondaryOpacity(0.72);
       setSecondaryOnTop(true);
       setSecondaryBlendMode("normal");
+      setSecondaryTimingEnabled(false);
+      setSecondaryTimelineStart(0);
+      setSecondaryDuration(3);
     } catch {
       setSecondarySourceError(t("source.importFailed"));
     }
@@ -1169,7 +1196,7 @@ function App() {
           layer.id === "source-secondary"
             ? {
                 canvas: secondaryCanvas,
-                visible: layer.visible,
+                visible: effectiveIndependentSecondaryVisible,
                 opacity: layer.opacity,
                 blendMode: layer.blendMode,
               }
@@ -1189,26 +1216,31 @@ function App() {
     const animateMorph = hasMorphTarget && (morphEnabled || (motionMode === "static" && !cameraRequested));
     const animateMotion = motionMode !== "static" && rendererMode !== "original";
     const animateCamera = cameraRequested;
-    if (!animateMorph && !animateMotion && !animateCamera) return;
-    if (rendererMode === "original" && !animateCamera) return;
+    const animateLayerTiming = independentLayerTimelineActive;
+    if (!animateMorph && !animateMotion && !animateCamera && !animateLayerTiming) return;
+    if (rendererMode === "original" && !animateCamera && !animateLayerTiming) return;
 
     const secondaryCanvas = secondaryLayerCanvas.current;
     const compositeRecordingCanvas = independentSourceComposition && secondaryCanvas
       ? document.createElement("canvas")
       : null;
     const repaintAnimationComposite = compositeRecordingCanvas && independentSourceComposition && secondaryCanvas
-      ? () => paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) =>
-          layer.id === "source-secondary"
-            ? {
-                canvas: secondaryCanvas,
-                visible: layer.visible,
-                opacity: layer.opacity,
-                blendMode: layer.blendMode,
-              }
-            : { canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },
-        ))
+      ? (timelineTime: number) => {
+          const sceneSample = sampleStudioSceneTimeline(independentSourceComposition.scene, timelineTime);
+          const secondarySample = sceneSample.layers.find(({ layer }) => layer.id === "source-secondary");
+          return paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) =>
+            layer.id === "source-secondary"
+              ? {
+                  canvas: secondaryCanvas,
+                  visible: secondarySample?.active ?? layer.visible,
+                  opacity: layer.opacity,
+                  blendMode: layer.blendMode,
+                }
+              : { canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },
+          ));
+        }
       : undefined;
-    repaintAnimationComposite?.();
+    repaintAnimationComposite?.(0);
     const recordingCanvas = compositeRecordingCanvas ?? canvas;
     const capability = getCanvasRecordingCapability(recordingCanvas);
     setAnimationCapability(capability);
@@ -1222,7 +1254,7 @@ function App() {
     setAnimationExporting(true);
     setMorphPlaying(false);
     setMotionTimelinePlaying(false);
-    const animateParameterTimeline = animateMorph || animateCamera || (animateMotion && motionKeyframesEnabled);
+    const animateParameterTimeline = animateMorph || animateCamera || (animateMotion && motionKeyframesEnabled) || animateLayerTiming;
     if (animateParameterTimeline) setMotionTimelineTime(0);
     if (animateMorph) {
       setMorphEnabled(true);
@@ -1230,7 +1262,7 @@ function App() {
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
     const durationSeconds = animateParameterTimeline
-      ? Math.max(0.001, animateMorph ? morphDuration : 0, animateCamera ? cameraDuration : 0, animateMotion && motionKeyframesEnabled ? motionDuration : 0)
+      ? Math.max(0.001, animateMorph ? morphDuration : 0, animateCamera ? cameraDuration : 0, animateMotion && motionKeyframesEnabled ? motionDuration : 0, animateLayerTiming ? independentSourceTimelineDuration : 0)
       : motionDuration;
     try {
       const result = await recordCanvasAnimation({
@@ -1238,9 +1270,9 @@ function App() {
         durationSeconds,
         frameRate: 60,
         onProgress: animateParameterTimeline ? (progress) => setMotionTimelineTime(progress * durationSeconds) : () => {},
-        onFrame: repaintAnimationComposite ? () => repaintAnimationComposite() : undefined,
+        onFrame: repaintAnimationComposite ? (progress) => repaintAnimationComposite(progress * durationSeconds) : undefined,
       });
-      const animationKind = animateCamera ? animateMotion ? `${motionMode}-camera-motion` : "camera-motion" : `${motionMode}-motion`;
+      const animationKind = animateCamera ? animateMotion ? `${motionMode}-camera-motion` : "camera-motion" : animateMotion ? `${motionMode}-motion` : animateLayerTiming ? "layer-timing" : "animation";
       const compositeSuffix = independentSourceComposition ? "-composite" : "";
       const fileName = animateMorph
         ? `${safeFileStem(sourceLabel)}-to-${safeFileStem(morphLabel || "morph")}-${rendererMode}${compositeSuffix}.${result.extension}`
@@ -1262,13 +1294,15 @@ function App() {
   const canMorph = Boolean(field && morphField) && !isVideoSource;
   const hasMotionAnimation = motionMode !== "static" && !isVideoSource;
   const hasCameraAnimation = cameraKeyframesEnabled && !isVideoSource;
-  const canExportAnimation = (canMorph || hasMotionAnimation || hasCameraAnimation)
+  const hasLayerTimingAnimation = independentLayerTimelineActive && !isVideoSource;
+  const canExportAnimation = (canMorph || hasMotionAnimation || hasCameraAnimation || hasLayerTimingAnimation)
     && !isVideoSource
-    && (rendererMode !== "original" || hasCameraAnimation)
+    && (rendererMode !== "original" || hasCameraAnimation || hasLayerTimingAnimation)
     && animationCapability.supported
     && !animationExporting;
   const cameraAnimationExport = hasCameraAnimation && !(canMorph && morphEnabled);
   const motionOnlyExport = hasMotionAnimation && !hasCameraAnimation && !(canMorph && morphEnabled);
+  const layerTimingOnlyExport = hasLayerTimingAnimation && !hasMotionAnimation && !hasCameraAnimation && !(canMorph && morphEnabled);
   const animationFormatLabel = animationCapability.supported
     ? animationCapability.preferredExtension
       ? `${animationCapability.preferredExtension.toUpperCase()} · ${animationCapability.preferredMimeType ?? "MediaRecorder"}`
@@ -1283,7 +1317,7 @@ function App() {
   const transportCanUse = isVideoSource
     ? hasSource && videoSceneDuration > 0
     : parameterTimelineActive
-      ? hasSource && (cameraTimelineActive || rendererMode !== "original")
+      ? hasSource && (cameraTimelineActive || independentLayerTimelineActive || rendererMode !== "original")
       : canMorph;
   const playTransport = () => {
     if (isVideoSource) { playVideo(); return; }
@@ -1405,7 +1439,7 @@ function App() {
             mainPreview={primaryPreview}
             secondaryCanvasRef={secondaryLayerCanvas}
             secondaryRaster={secondaryRaster}
-            secondaryVisible={independentSecondaryLayer?.visible ?? false}
+            secondaryVisible={effectiveIndependentSecondaryVisible}
             secondaryOpacity={independentSecondaryLayer?.opacity ?? secondaryOpacity}
             secondaryOnTop={independentSecondaryOnTop}
             secondaryBlendMode={secondaryBlendMode}
@@ -1426,7 +1460,7 @@ function App() {
       </section>
 
       <aside className="inspector-panel">
-        {secondaryRaster && independentSourceComposition && <IndependentSourceLayerPanel disabled={animationExporting} mainLabel={sourceLabel} secondaryLabel={secondarySourceLabel} secondaryVisible={independentSecondaryLayer?.visible ?? secondaryVisible} secondaryOpacity={independentSecondaryLayer?.opacity ?? secondaryOpacity} secondaryOnTop={independentSecondaryOnTop} secondaryBlendMode={secondaryBlendMode} labels={{ title: t("layer.title"), summary: t("layer.independentComposition"), mainSource: t("layer.mainSource"), secondarySource: t("layer.secondarySource"), secondaryToggle: t("layer.secondaryToggle"), secondaryOpacity: t("layer.secondaryOpacity"), opacity: t("layer.opacity"), blend: t("layer.blend"), order: t("layer.order"), secondaryOnTop: t("layer.secondaryOnTop"), mainOnTop: t("layer.mainOnTop"), normal: t("layer.normal"), multiply: t("layer.multiply"), screen: t("layer.screen") }} onSecondaryVisibleChange={setSecondaryVisible} onSecondaryOpacityChange={setSecondaryOpacity} onSecondaryOnTopChange={setSecondaryOnTop} onSecondaryBlendModeChange={setSecondaryBlendMode} />}
+        {secondaryRaster && independentSourceComposition && <IndependentSourceLayerPanel disabled={animationExporting} mainLabel={sourceLabel} secondaryLabel={secondarySourceLabel} secondaryVisible={independentSecondaryLayer?.visible ?? secondaryVisible} secondaryOpacity={independentSecondaryLayer?.opacity ?? secondaryOpacity} secondaryOnTop={independentSecondaryOnTop} secondaryBlendMode={secondaryBlendMode} timingDisabled={isVideoSource} secondaryTimingEnabled={secondaryTimingEnabled} secondaryTimelineStart={secondaryTimelineStart} secondaryDuration={secondaryDuration} labels={{ title: t("layer.title"), summary: t("layer.independentComposition"), mainSource: t("layer.mainSource"), secondarySource: t("layer.secondarySource"), secondaryToggle: t("layer.secondaryToggle"), secondaryOpacity: t("layer.secondaryOpacity"), opacity: t("layer.opacity"), blend: t("layer.blend"), order: t("layer.order"), secondaryOnTop: t("layer.secondaryOnTop"), mainOnTop: t("layer.mainOnTop"), normal: t("layer.normal"), multiply: t("layer.multiply"), screen: t("layer.screen"), timing: t("layer.secondaryTiming"), timingToggle: t("layer.secondaryTimingToggle"), timingHint: t("layer.secondaryTimingHint"), timelineStart: t("layer.timelineStart"), timelineDuration: t("layer.timelineDuration"), seconds: t("morph.seconds") }} onSecondaryVisibleChange={setSecondaryVisible} onSecondaryOpacityChange={setSecondaryOpacity} onSecondaryOnTopChange={setSecondaryOnTop} onSecondaryBlendModeChange={setSecondaryBlendMode} onSecondaryTimingEnabledChange={(enabled) => { setSecondaryTimingEnabled(enabled); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} onSecondaryTimelineStartChange={(seconds) => { setSecondaryTimelineStart(seconds); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} onSecondaryDurationChange={(seconds) => { setSecondaryDuration(seconds); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} />}
         {isVideoSource && <VideoClipPanel disabled={animationExporting} duration={videoDuration} inPoint={videoClip?.sourceStart ?? 0} outPoint={videoClipEnd} timelineStart={videoClip?.timelineStart ?? 0} maxTimelineStart={Math.max(12, videoDuration * 4)} labels={{ title: t("video.clipTitle"), summary: t("video.clipSummary"), inPoint: t("video.clipIn"), outPoint: t("video.clipOut"), range: t("video.clipRange"), seconds: t("morph.seconds"), timelineStart: t("timeline.start") }} onInPointChange={changeVideoClipIn} onOutPointChange={changeVideoClipOut} onTimelineStartChange={changeVideoClipTimelineStart} />}
         {isVideoSource && rendererMode !== "original" && <VideoLayerStackPanel disabled={animationExporting} originalVisible={videoCompositeOriginal} originalOpacity={effectiveVideoOriginalOpacity} originalOpacityDisabled={videoOriginalOpacityKeyframesEnabled} originalOnTop={videoOriginalOnTop} transformedBlendMode={videoBlendMode} labels={{ title: t("layer.title"), summary: t("layer.videoComposition"), original: t("layer.original"), transformed: t("layer.transformed"), originalToggle: t("video.compositeOriginal"), originalOpacity: t("video.originalOpacity"), opacity: t("layer.opacity"), blend: t("layer.blend"), order: t("layer.order"), originalOnTop: t("layer.originalOnTop"), transformedOnTop: t("layer.transformedOnTop"), normal: t("layer.normal"), multiply: t("layer.multiply"), screen: t("layer.screen") }} onOriginalVisibleChange={setVideoCompositeOriginal} onOriginalOpacityChange={setVideoOriginalOpacity} onOriginalOnTopChange={setVideoOriginalOnTop} onTransformedBlendModeChange={setVideoBlendMode} />}
         {isVideoSource && rendererMode !== "original" && videoCompositeOriginal && <section className="inspector-section" data-stage5-layer-opacity-keyframes="true"><h2>{t("timeline.layerOpacity")}</h2><p>{t("timeline.layerOpacityHint")}</p><div className="toggle-row"><span>{t("timeline.layerOpacityAnimate")}</span><button aria-label={t("timeline.layerOpacityToggle")} disabled={animationExporting || videoClipDuration <= 0} className={`toggle ${videoOriginalOpacityKeyframesEnabled ? "on" : ""}`} aria-pressed={videoOriginalOpacityKeyframesEnabled} onClick={() => setVideoOriginalOpacityKeyframesEnabled((value) => !value)} /></div>{videoOriginalOpacityKeyframesEnabled && <><label>{t("timeline.startOpacity")}<div className="range-row"><input aria-label={t("timeline.startOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityStart * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityStart(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityStart * 100)}%</output></div></label><label>{t("timeline.endOpacity")}<div className="range-row"><input aria-label={t("timeline.endOpacity")} type="range" min="0" max="100" value={Math.round(videoOriginalOpacityEnd * 100)} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityEnd(Number(event.target.value) / 100)} /><output>{Math.round(videoOriginalOpacityEnd * 100)}%</output></div></label><label>{t("timeline.layerOpacityEasing")}<select aria-label={t("timeline.layerOpacityEasing")} value={videoOriginalOpacityEasing} disabled={animationExporting} onChange={(event) => setVideoOriginalOpacityEasing(event.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label><label>{t("timeline.currentOpacity")}<code>{Math.round(effectiveVideoOriginalOpacity * 100)}%</code></label></>}</section>}
@@ -1445,7 +1479,7 @@ function App() {
         {rendererMode !== "original" && <section className="inspector-section" data-stage5-motion="true" data-motion-strength={effectiveMotionStrength.toFixed(3)}><h2>{t("motion.title")}</h2><p>{t("motion.hint")}</p><label>{t("motion.type")}<select aria-label={t("motion.type")} value={motionMode} disabled={animationExporting} onChange={(e) => { const next = e.target.value as PreviewMotionMode; setMotionMode(next); if (next === "static") { setMotionTimelinePlaying(false); setMotionTimelineTime(0); } }}><option value="static">{t("motion.static")}</option><option value="pulse">{t("motion.pulse")}</option><option value="drift">{t("motion.drift")}</option></select></label>{motionMode !== "static" && <><label>{t("motion.strength")}<div className="range-row"><input aria-label={t("motion.strength")} type="range" min="0" max="200" value={Math.round(effectiveMotionStrength * 100)} disabled={animationExporting || motionKeyframesEnabled} onChange={(e) => setMotionStrength(Number(e.target.value) / 100)} /><output>{Math.round(effectiveMotionStrength * 100)}%</output></div></label><label>{t("motion.speed")}<div className="range-row"><input aria-label={t("motion.speed")} type="range" min="25" max="300" value={Math.round(motionSpeed * 100)} disabled={animationExporting} onChange={(e) => setMotionSpeed(Number(e.target.value) / 100)} /><output>{motionSpeed.toFixed(2)}×</output></div></label><label>{t("motion.duration")}<div className="range-row"><input aria-label={t("motion.duration")} type="range" min="1" max="12" step="0.5" value={motionDuration} disabled={animationExporting} onChange={(e) => { setMotionDuration(Number(e.target.value)); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /><output>{motionDuration} {t("morph.seconds")}</output></div></label><div className="toggle-row"><span>{t("motion.keyframes")}</span><button aria-label={t("motion.keyframesToggle")} disabled={animationExporting} className={`toggle ${motionKeyframesEnabled ? "on" : ""}`} aria-pressed={motionKeyframesEnabled} onClick={() => { const next = !motionKeyframesEnabled; setMotionKeyframesEnabled(next); setMotionTimelinePlaying(false); setMotionTimelineTime(0); }} /></div>{motionKeyframesEnabled && <><p>{t("motion.keyframesHint")}</p><label>{t("motion.startStrength")}<div className="range-row"><input aria-label={t("motion.startStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthStart * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthStart(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthStart * 100)}%</output></div></label><label>{t("motion.endStrength")}<div className="range-row"><input aria-label={t("motion.endStrength")} type="range" min="0" max="200" value={Math.round(motionStrengthEnd * 100)} disabled={animationExporting} onChange={(e) => { setMotionStrengthEnd(Number(e.target.value) / 100); setMotionTimelinePlaying(false); }} /><output>{Math.round(motionStrengthEnd * 100)}%</output></div></label><label>{t("motion.keyframeEasing")}<select aria-label={t("motion.keyframeEasing")} value={motionKeyframeEasing} disabled={animationExporting} onChange={(e) => setMotionKeyframeEasing(e.target.value as KeyframeEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in">{t("timeline.easeIn")}</option><option value="ease-out">{t("timeline.easeOut")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="step">{t("timeline.step")}</option></select></label></>}</>}</section>}
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">3</span><div><h2>{t("morph.title")}</h2><p>{t("guide.morphHint")}</p></div></div>{isVideoSource ? <p>{t("source.videoMorphLater")}</p> : !canMorph ? <p>{t("morph.needsTarget")}</p> : <><div className="toggle-row"><span>{t("morph.enabled")}</span><button disabled={animationExporting} className={`toggle ${morphEnabled ? "on" : ""}`} aria-pressed={morphEnabled} onClick={() => { const next = !morphEnabled; setMorphEnabled(next); setMotionTimelinePlaying(false); if (next && !motionTimelineActive && !cameraTimelineActive) setMotionTimelineTime(morphProgress * morphDuration); else if (!next) setMorphProgress(timelineMorphProgress); if (next && rendererMode === "original") setRendererMode("point"); }} /></div><label>{t("morph.progress")}<div className="range-row"><input aria-label={t("morph.progress")} type="range" min="0" max="100" value={Math.round(timelineMorphProgress * 100)} disabled={animationExporting} onChange={(e) => { const progress = Number(e.target.value) / 100; setMorphPlaying(false); setMotionTimelinePlaying(false); setMorphProgress(progress); if (morphTimelineActive) setMotionTimelineTime(progress * morphDuration); }} /><output>{Math.round(timelineMorphProgress * 100)}%</output></div></label><label>{t("morph.easing")}<select value={morphEasing} disabled={animationExporting} onChange={(e) => setMorphEasing(e.target.value as MorphEasing)}><option value="linear">{t("morph.linear")}</option><option value="ease-in-out">{t("morph.easeInOut")}</option><option value="smoothstep">{t("morph.smoothstep")}</option></select></label><label>{t("morph.duration")}<div className="range-row"><input type="range" min="1" max="12" step="0.5" value={morphDuration} disabled={animationExporting} onChange={(e) => setMorphDuration(Number(e.target.value))} /><output>{morphDuration} {t("morph.seconds")}</output></div></label><button className="source-add" disabled={animationExporting} onClick={() => { setMorphEnabled(true); setMorphPlaying(false); if (timelineMorphProgress >= 1) { setMorphProgress(0); setMotionTimelineTime(0); } setMotionTimelinePlaying((value) => !value); }}>{morphTimelineActive && motionTimelinePlaying ? t("morph.stop") : t("morph.play")}</button></>}</section>
         <section className="inspector-section guided-section"><div className="section-guide"><span className="step-badge">4</span><div><h2>{t("export.still")}</h2><p>{isVideoSource ? t("guide.videoStillExportHint") : t("guide.exportHint")}</p></div></div><label>{t("export.format")}<select value={exportFormat} disabled={animationExporting} onChange={(e) => setExportFormat(e.target.value as "png" | "webp")}><option value="png">PNG</option><option value="webp">WebP</option></select></label><button className="source-add" disabled={!hasSource || animationExporting} onClick={exportStill}>{t("export.currentFrame")}</button></section>
-        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : animationExportError ?? (animationExportSucceeded ? (cameraAnimationExport ? t("export.cameraAnimationSaved") : motionOnlyExport ? t("export.motionAnimationSaved") : t("export.animationSaved")) : (cameraAnimationExport ? t("export.cameraAnimationHint") : motionOnlyExport ? t("export.motionAnimationHint") : t("export.animationHint")))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportShortAnimation()}>{animationExporting ? t("export.animationRecording") : cameraAnimationExport ? t("export.cameraAnimationButton") : motionOnlyExport ? t("export.motionAnimationButton") : t("export.animationButton")}</button></section>
+        <section className="inspector-section"><h2>{t("export.animation")}</h2><p>{isVideoSource ? t("export.videoLongExportLater") : animationExportError ?? (animationExportSucceeded ? (layerTimingOnlyExport ? t("export.layerTimingAnimationSaved") : cameraAnimationExport ? t("export.cameraAnimationSaved") : motionOnlyExport ? t("export.motionAnimationSaved") : t("export.animationSaved")) : (layerTimingOnlyExport ? t("export.layerTimingAnimationHint") : cameraAnimationExport ? t("export.cameraAnimationHint") : motionOnlyExport ? t("export.motionAnimationHint") : t("export.animationHint")))}</p><label>{t("export.animationSupportedFormat")}<code>{animationFormatLabel}</code></label><button className="source-add" disabled={!canExportAnimation} onClick={() => void exportShortAnimation()}>{animationExporting ? t("export.animationRecording") : layerTimingOnlyExport ? t("export.layerTimingAnimationButton") : cameraAnimationExport ? t("export.cameraAnimationButton") : motionOnlyExport ? t("export.motionAnimationButton") : t("export.animationButton")}</button></section>
         <section className="inspector-section local-processing-note"><strong>{t("status.localProcessing")}</strong><p>{t("status.localProcessingDetail")}</p><code>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</code></section>
       </aside>
     </main>

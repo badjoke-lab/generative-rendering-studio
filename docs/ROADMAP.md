@@ -158,7 +158,7 @@ Outcome: the product becomes a multi-scene production environment where sources,
 
 User behavior: stack multiple sources and generated elements as layers; place and trim time-based elements; keyframe visual parameters and camera motion; apply masks/blending/effects; arrange Morph and other motion over time; preview a composed sequence. Still-image users can continue using the simpler non-timeline path.
 
-Status: in progress on main. Initial Studio work now includes explicit optional Motion controls with Static as the default, short Motion animation export, and a first keyframe/parameter-automation slice where Motion Strength can be driven between start/end keyframes and scrubbed or played through the existing transport. The simpler still-image path remains available without enabling the timeline. Broader Layers/Timeline/Camera/Effects composition remains ongoing Stage 5 work.
+Status: in progress on main. Initial Studio work now includes explicit optional Motion controls with Static as the default, short Motion animation export, and a first keyframe/parameter-automation slice where Motion Strength can be driven between start/end keyframes and scrubbed or played through the existing transport. Independent second still/SVG scene sources can be composited with visibility, opacity, blend and stack order, exported in supported short animations, and optionally placed on the shared Studio timeline with a chosen start and duration. The simpler still-image path remains available without enabling the timeline. Broader Layers/Timeline/Camera/Effects composition remains ongoing Stage 5 work.
 
 ## Stage 6 — Audio/data modulation
 
