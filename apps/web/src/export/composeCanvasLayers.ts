@@ -38,13 +38,12 @@ export function normalizeCanvasStackLayer(layer: CanvasStackLayer): NormalizedCa
   };
 }
 
-export function composeCanvasStack(layers: readonly CanvasStackLayer[]) {
+export function paintCanvasStack(output: HTMLCanvasElement, layers: readonly CanvasStackLayer[]) {
   const normalized = layers.map(normalizeCanvasStackLayer);
   const width = Math.max(1, ...normalized.map((layer) => layer.canvas.width));
   const height = Math.max(1, ...normalized.map((layer) => layer.canvas.height));
-  const output = document.createElement("canvas");
-  output.width = width;
-  output.height = height;
+  if (output.width !== width) output.width = width;
+  if (output.height !== height) output.height = height;
   const ctx = output.getContext("2d");
   if (!ctx) throw new Error("canvas-2d-unavailable");
 
@@ -60,6 +59,10 @@ export function composeCanvasStack(layers: readonly CanvasStackLayer[]) {
   ctx.globalCompositeOperation = "source-over";
   ctx.restore();
   return output;
+}
+
+export function composeCanvasStack(layers: readonly CanvasStackLayer[]) {
+  return paintCanvasStack(document.createElement("canvas"), layers);
 }
 
 export function composeCanvasLayers(
