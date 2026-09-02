@@ -12,21 +12,28 @@ export function useIndependentSourceLayers() {
   const [layers, setLayers] = useState<readonly IndependentSourceLayerState[]>([]);
   const nextLayerOrdinal = useRef(2);
 
-  const addLayer = useCallback((label: string, raster: RasterPixels) => {
+  const createLayer = useCallback((label: string, raster: RasterPixels) => {
     const ordinal = nextLayerOrdinal.current;
     nextLayerOrdinal.current += 1;
-    const id = `source-layer-${ordinal}`;
-    setLayers((current) => [
-      ...current,
-      createIndependentSourceLayerState({
-        id,
-        sourceId: `project-source-${ordinal}`,
-        label,
-        raster,
-      }),
-    ]);
-    return id;
+    return createIndependentSourceLayerState({
+      id: `source-layer-${ordinal}`,
+      sourceId: `project-source-${ordinal}`,
+      label,
+      raster,
+    });
   }, []);
+
+  const addLayer = useCallback((label: string, raster: RasterPixels) => {
+    const layer = createLayer(label, raster);
+    setLayers((current) => [...current, layer]);
+    return layer.id;
+  }, [createLayer]);
+
+  const replaceSingleLayer = useCallback((label: string, raster: RasterPixels) => {
+    const layer = createLayer(label, raster);
+    setLayers([layer]);
+    return layer.id;
+  }, [createLayer]);
 
   const removeLayer = useCallback((layerId: string) => {
     setLayers((current) => removeIndependentSourceLayer(current, layerId));
@@ -45,6 +52,7 @@ export function useIndependentSourceLayers() {
   return {
     layers,
     addLayer,
+    replaceSingleLayer,
     removeLayer,
     patchLayer,
     moveLayer,
