@@ -18,6 +18,10 @@ export interface IndependentSourcePreviewLayer {
   readonly blendMode: "normal" | "multiply" | "screen";
 }
 
+type IndependentSourcePreviewStackEntry =
+  | { readonly kind: "primary" }
+  | { readonly kind: "additional"; readonly layer: IndependentSourcePreviewLayer };
+
 export function IndependentSourceLayersCompositePreview({
   mainPreview,
   layers,
@@ -36,8 +40,8 @@ export function IndependentSourceLayersCompositePreview({
   cameraRotation?: number;
 }) {
   const boundedPrimaryLayerIndex = Math.max(0, Math.min(layers.length, primaryLayerIndex));
-  const stack = layers.map((layer) => ({ kind: "additional" as const, layer }));
-  stack.splice(boundedPrimaryLayerIndex, 0, { kind: "primary" as const, layer: undefined });
+  const stack: IndependentSourcePreviewStackEntry[] = layers.map((layer) => ({ kind: "additional", layer }));
+  stack.splice(boundedPrimaryLayerIndex, 0, { kind: "primary" });
 
   return (
     <div
