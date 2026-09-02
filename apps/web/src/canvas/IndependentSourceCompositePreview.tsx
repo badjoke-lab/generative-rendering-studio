@@ -9,6 +9,95 @@ const layerStyle: CSSProperties = {
   minHeight: 0,
 };
 
+export interface IndependentSourcePreviewLayer {
+  readonly id: string;
+  readonly canvasRef: RefObject<HTMLCanvasElement | null>;
+  readonly raster: RasterPixels;
+  readonly visible: boolean;
+  readonly opacity: number;
+  readonly blendMode: "normal" | "multiply" | "screen";
+}
+
+type IndependentSourcePreviewStackEntry =
+  | { readonly kind: "primary" }
+  | { readonly kind: "additional"; readonly layer: IndependentSourcePreviewLayer };
+
+export function IndependentSourceLayersCompositePreview({
+  mainPreview,
+  layers,
+  primaryLayerIndex = 0,
+  cameraPanX = 0,
+  cameraPanY = 0,
+  cameraZoom = 1,
+  cameraRotation = 0,
+  legacySecondaryVisible,
+  legacySecondaryLayerOrder,
+  legacySecondaryBlendMode,
+}: {
+  mainPreview: ReactNode;
+  layers: readonly IndependentSourcePreviewLayer[];
+  primaryLayerIndex?: number;
+  cameraPanX?: number;
+  cameraPanY?: number;
+  cameraZoom?: number;
+  cameraRotation?: number;
+  legacySecondaryVisible?: "true" | "false";
+  legacySecondaryLayerOrder?: "secondary-top" | "main-top";
+  legacySecondaryBlendMode?: "normal" | "multiply" | "screen";
+}) {
+  const boundedPrimaryLayerIndex = Math.max(0, Math.min(layers.length, primaryLayerIndex));
+  const stack: IndependentSourcePreviewStackEntry[] = layers.map((layer) => ({ kind: "additional", layer }));
+  stack.splice(boundedPrimaryLayerIndex, 0, { kind: "primary" });
+
+  return (
+    <div
+      className="independent-source-composite-preview"
+      data-independent-source-composite="true"
+      data-independent-layer-count={stack.length}
+      data-secondary-visible={legacySecondaryVisible}
+      data-secondary-layer-order={legacySecondaryLayerOrder}
+      data-secondary-blend-mode={legacySecondaryBlendMode}
+      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+    >
+      {stack.map((entry, index) => entry.kind === "primary" ? (
+        <div
+          className="independent-source-main-layer"
+          data-independent-layer="main"
+          key="source-main"
+          style={{ ...layerStyle, zIndex: index + 1 }}
+        >
+          {mainPreview}
+        </div>
+      ) : (
+        <div
+          className="independent-source-secondary-layer"
+          data-independent-layer={entry.layer.id}
+          key={entry.layer.id}
+          style={{
+            ...layerStyle,
+            display: entry.layer.visible ? "block" : "none",
+            opacity: Math.min(1, Math.max(0, entry.layer.opacity)),
+            mixBlendMode: entry.layer.blendMode,
+            zIndex: index + 1,
+            pointerEvents: "none",
+          }}
+        >
+          <OriginalPreview
+            canvasRef={entry.layer.canvasRef}
+            raster={entry.layer.raster}
+            background="transparent"
+            cameraPanX={cameraPanX}
+            cameraPanY={cameraPanY}
+            cameraZoom={cameraZoom}
+            cameraRotation={cameraRotation}
+            transparentBackground
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function IndependentSourceCompositePreview({
   mainPreview,
   secondaryCanvasRef,
@@ -34,47 +123,27 @@ export function IndependentSourceCompositePreview({
   cameraZoom?: number;
   cameraRotation?: number;
 }) {
+  const layers = secondaryRaster ? [{
+    id: "source-secondary",
+    canvasRef: secondaryCanvasRef,
+    raster: secondaryRaster,
+    visible: secondaryVisible,
+    opacity: secondaryOpacity,
+    blendMode: secondaryBlendMode,
+  }] : [];
+
   return (
-    <div
-      className="independent-source-composite-preview"
-      data-independent-source-composite="true"
-      data-secondary-visible={secondaryRaster && secondaryVisible ? "true" : "false"}
-      data-secondary-layer-order={secondaryOnTop ? "secondary-top" : "main-top"}
-      data-secondary-blend-mode={secondaryBlendMode}
-      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-    >
-      <div
-        className="independent-source-main-layer"
-        data-independent-layer="main"
-        style={{ ...layerStyle, zIndex: secondaryRaster && secondaryOnTop ? 1 : 2 }}
-      >
-        {mainPreview}
-      </div>
-      {secondaryRaster && (
-        <div
-          className="independent-source-secondary-layer"
-          data-independent-layer="secondary"
-          style={{
-            ...layerStyle,
-            display: secondaryVisible ? "block" : "none",
-            opacity: Math.min(1, Math.max(0, secondaryOpacity)),
-            mixBlendMode: secondaryBlendMode,
-            zIndex: secondaryOnTop ? 2 : 1,
-            pointerEvents: "none",
-          }}
-        >
-          <OriginalPreview
-            canvasRef={secondaryCanvasRef}
-            raster={secondaryRaster}
-            background="transparent"
-            cameraPanX={cameraPanX}
-            cameraPanY={cameraPanY}
-            cameraZoom={cameraZoom}
-            cameraRotation={cameraRotation}
-            transparentBackground
-          />
-        </div>
-      )}
-    </div>
+    <IndependentSourceLayersCompositePreview
+      mainPreview={mainPreview}
+      layers={layers}
+      primaryLayerIndex={secondaryOnTop ? 0 : layers.length}
+      cameraPanX={cameraPanX}
+      cameraPanY={cameraPanY}
+      cameraZoom={cameraZoom}
+      cameraRotation={cameraRotation}
+      legacySecondaryVisible={secondaryRaster && secondaryVisible ? "true" : "false"}
+      legacySecondaryLayerOrder={secondaryOnTop ? "secondary-top" : "main-top"}
+      legacySecondaryBlendMode={secondaryBlendMode}
+    />
   );
 }
