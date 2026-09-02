@@ -23,6 +23,14 @@ export function useLegacyIndependentSourceLayerBridge() {
     independentSources.patchLayer(secondaryLayer.id, patch);
   }, [independentSources.patchLayer, secondaryLayer]);
 
+  const setSecondarySourceLabel = useCallback((label: string) => patchSecondaryLayer({ label }), [patchSecondaryLayer]);
+  const setSecondaryVisible = useCallback((visible: boolean) => patchSecondaryLayer({ visible }), [patchSecondaryLayer]);
+  const setSecondaryOpacity = useCallback((opacity: number) => patchSecondaryLayer({ opacity }), [patchSecondaryLayer]);
+  const setSecondaryBlendMode = useCallback((blendMode: "normal" | "multiply" | "screen") => patchSecondaryLayer({ blendMode }), [patchSecondaryLayer]);
+  const setSecondaryTimingEnabled = useCallback((timingEnabled: boolean) => patchSecondaryLayer({ timingEnabled }), [patchSecondaryLayer]);
+  const setSecondaryTimelineStart = useCallback((timelineStart: number) => patchSecondaryLayer({ timelineStart }), [patchSecondaryLayer]);
+  const setSecondaryDuration = useCallback((duration: number) => patchSecondaryLayer({ duration }), [patchSecondaryLayer]);
+
   return {
     independentSources,
     secondaryLayer,
@@ -36,7 +44,14 @@ export function useLegacyIndependentSourceLayerBridge() {
     secondaryTimelineStart: secondaryLayer?.timelineStart ?? 0,
     secondaryDuration: secondaryLayer?.duration ?? 3,
     secondaryOnTop,
+    setSecondarySourceLabel,
+    setSecondaryVisible,
+    setSecondaryOpacity,
     setSecondaryOnTop,
+    setSecondaryBlendMode,
+    setSecondaryTimingEnabled,
+    setSecondaryTimelineStart,
+    setSecondaryDuration,
     replaceSecondaryLayer,
     clearSecondaryLayer,
     patchSecondaryLayer,
