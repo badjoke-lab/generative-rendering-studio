@@ -30,6 +30,9 @@ export function IndependentSourceLayersCompositePreview({
   cameraPanY = 0,
   cameraZoom = 1,
   cameraRotation = 0,
+  legacySecondaryVisible,
+  legacySecondaryLayerOrder,
+  legacySecondaryBlendMode,
 }: {
   mainPreview: ReactNode;
   layers: readonly IndependentSourcePreviewLayer[];
@@ -38,6 +41,9 @@ export function IndependentSourceLayersCompositePreview({
   cameraPanY?: number;
   cameraZoom?: number;
   cameraRotation?: number;
+  legacySecondaryVisible?: "true" | "false";
+  legacySecondaryLayerOrder?: "secondary-top" | "main-top";
+  legacySecondaryBlendMode?: "normal" | "multiply" | "screen";
 }) {
   const boundedPrimaryLayerIndex = Math.max(0, Math.min(layers.length, primaryLayerIndex));
   const stack: IndependentSourcePreviewStackEntry[] = layers.map((layer) => ({ kind: "additional", layer }));
@@ -48,6 +54,9 @@ export function IndependentSourceLayersCompositePreview({
       className="independent-source-composite-preview"
       data-independent-source-composite="true"
       data-independent-layer-count={stack.length}
+      data-secondary-visible={legacySecondaryVisible}
+      data-secondary-layer-order={legacySecondaryLayerOrder}
+      data-secondary-blend-mode={legacySecondaryBlendMode}
       style={{ position: "absolute", inset: 0, overflow: "hidden" }}
     >
       {stack.map((entry, index) => entry.kind === "primary" ? (
@@ -124,21 +133,17 @@ export function IndependentSourceCompositePreview({
   }] : [];
 
   return (
-    <div
-      data-secondary-visible={secondaryRaster && secondaryVisible ? "true" : "false"}
-      data-secondary-layer-order={secondaryOnTop ? "secondary-top" : "main-top"}
-      data-secondary-blend-mode={secondaryBlendMode}
-      style={{ position: "absolute", inset: 0 }}
-    >
-      <IndependentSourceLayersCompositePreview
-        mainPreview={mainPreview}
-        layers={layers}
-        primaryLayerIndex={secondaryOnTop ? 0 : layers.length}
-        cameraPanX={cameraPanX}
-        cameraPanY={cameraPanY}
-        cameraZoom={cameraZoom}
-        cameraRotation={cameraRotation}
-      />
-    </div>
+    <IndependentSourceLayersCompositePreview
+      mainPreview={mainPreview}
+      layers={layers}
+      primaryLayerIndex={secondaryOnTop ? 0 : layers.length}
+      cameraPanX={cameraPanX}
+      cameraPanY={cameraPanY}
+      cameraZoom={cameraZoom}
+      cameraRotation={cameraRotation}
+      legacySecondaryVisible={secondaryRaster && secondaryVisible ? "true" : "false"}
+      legacySecondaryLayerOrder={secondaryOnTop ? "secondary-top" : "main-top"}
+      legacySecondaryBlendMode={secondaryBlendMode}
+    />
   );
 }
