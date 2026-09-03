@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RasterPixels } from "@grs/core";
 import { useIndependentSourceLayers } from "./useIndependentSourceLayers";
 
@@ -10,12 +10,26 @@ export function useLegacyIndependentSourceLayerBridge() {
 
   const activeLayerId = secondaryLayer?.id ?? pendingLayerId.current;
 
+  useEffect(() => {
+    const pendingId = pendingLayerId.current;
+    if (pendingId && independentSources.layers.some((layer) => layer.id === pendingId)) {
+      pendingLayerId.current = null;
+    }
+  }, [independentSources.layers]);
+
   const replaceSecondaryLayer = useCallback((label: string, raster: RasterPixels) => {
     const id = independentSources.replaceSingleLayer(label, raster);
     pendingLayerId.current = id;
     setSecondaryOnTop(true);
     return id;
   }, [independentSources.replaceSingleLayer]);
+
+  const appendSecondaryLayer = useCallback((label: string, raster: RasterPixels) => {
+    const id = independentSources.addLayer(label, raster);
+    pendingLayerId.current = id;
+    setSecondaryOnTop(true);
+    return id;
+  }, [independentSources.addLayer]);
 
   const clearSecondaryLayer = useCallback(() => {
     independentSources.clearLayers();
@@ -24,18 +38,20 @@ export function useLegacyIndependentSourceLayerBridge() {
   }, [independentSources.clearLayers]);
 
   const patchSecondaryLayer = useCallback((patch: Partial<Pick<NonNullable<typeof secondaryLayer>, "label" | "visible" | "opacity" | "blendMode" | "timingEnabled" | "timelineStart" | "duration">>) => {
-    const layerId = secondaryLayer?.id ?? pendingLayerId.current;
+    const layerId = pendingLayerId.current ?? secondaryLayer?.id;
     if (!layerId) return;
     independentSources.patchLayer(layerId, patch);
   }, [independentSources.patchLayer, secondaryLayer?.id]);
 
   const setSecondaryRaster = useCallback((raster: RasterPixels | undefined) => {
     if (!raster) {
-      clearSecondaryLayer();
+      if (secondaryLayer) independentSources.removeLayer(secondaryLayer.id);
+      else clearSecondaryLayer();
+      pendingLayerId.current = null;
       return;
     }
-    replaceSecondaryLayer(secondaryLayer?.label ?? "", raster);
-  }, [clearSecondaryLayer, replaceSecondaryLayer, secondaryLayer?.label]);
+    appendSecondaryLayer("", raster);
+  }, [appendSecondaryLayer, clearSecondaryLayer, independentSources.removeLayer, secondaryLayer]);
   const setSecondarySourceLabel = useCallback((label: string) => patchSecondaryLayer({ label }), [patchSecondaryLayer]);
   const setSecondaryVisible = useCallback((visible: boolean) => patchSecondaryLayer({ visible }), [patchSecondaryLayer]);
   const setSecondaryOpacity = useCallback((opacity: number) => patchSecondaryLayer({ opacity }), [patchSecondaryLayer]);
@@ -67,6 +83,7 @@ export function useLegacyIndependentSourceLayerBridge() {
     setSecondaryTimelineStart,
     setSecondaryDuration,
     replaceSecondaryLayer,
+    appendSecondaryLayer,
     clearSecondaryLayer,
     patchSecondaryLayer,
   } as const;
