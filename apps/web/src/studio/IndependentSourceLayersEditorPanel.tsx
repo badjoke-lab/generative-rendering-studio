@@ -10,6 +10,8 @@ export interface IndependentSourceLayersEditorLabels {
   readonly opacity: string;
   readonly blend: string;
   readonly order: string;
+  readonly additionalOnTop: string;
+  readonly mainOnTop: string;
   readonly normal: string;
   readonly multiply: string;
   readonly screen: string;
@@ -27,7 +29,9 @@ export function IndependentSourceLayersEditorPanel({
   timingDisabled,
   mainLabel,
   layers,
+  primaryOnTop,
   labels,
+  onPrimaryOnTopChange,
   onVisibleChange,
   onOpacityChange,
   onBlendModeChange,
@@ -41,7 +45,9 @@ export function IndependentSourceLayersEditorPanel({
   timingDisabled?: boolean;
   mainLabel: string;
   layers: readonly IndependentSourceLayerState[];
+  primaryOnTop: boolean;
   labels: IndependentSourceLayersEditorLabels;
+  onPrimaryOnTopChange: (primaryOnTop: boolean) => void;
   onVisibleChange: (layerId: string, visible: boolean) => void;
   onOpacityChange: (layerId: string, opacity: number) => void;
   onBlendModeChange: (layerId: string, blendMode: SceneLayerStackBlendMode) => void;
@@ -51,23 +57,22 @@ export function IndependentSourceLayersEditorPanel({
   onMove: (layerId: string, toIndex: number) => void;
   onRemove: (layerId: string) => void;
 }) {
-  const rows = [
-    {
-      id: "source-main",
-      label: mainLabel,
-      detail: labels.mainSource,
-      visible: true,
-      visibilityLocked: true,
-    },
-    ...layers.map((layer) => ({
-      id: layer.id,
-      label: layer.label,
-      detail: labels.additionalSource,
-      visible: layer.visible,
-      opacity: layer.opacity,
-      blendMode: layer.blendMode,
-    })),
-  ];
+  const mainRow = {
+    id: "source-main",
+    label: mainLabel,
+    detail: labels.mainSource,
+    visible: true,
+    visibilityLocked: true,
+  } as const;
+  const additionalRows = layers.map((layer) => ({
+    id: layer.id,
+    label: layer.label,
+    detail: labels.additionalSource,
+    visible: layer.visible,
+    opacity: layer.opacity,
+    blendMode: layer.blendMode,
+  }));
+  const rows = primaryOnTop ? [...additionalRows, mainRow] : [mainRow, ...additionalRows];
 
   return (
     <section className="inspector-section stage5-layer-stack" data-stage5-layer-stack="independent-sources-editor">
@@ -78,6 +83,19 @@ export function IndependentSourceLayersEditorPanel({
         </div>
         <span className="stage5-layer-count">{rows.length}</span>
       </div>
+
+      <label className="stage5-layer-order-control">
+        <span>{labels.order}</span>
+        <select
+          aria-label={labels.order}
+          value={primaryOnTop ? "main-top" : "additional-top"}
+          disabled={disabled}
+          onChange={(event) => onPrimaryOnTopChange(event.target.value === "main-top")}
+        >
+          <option value="additional-top">{labels.additionalOnTop}</option>
+          <option value="main-top">{labels.mainOnTop}</option>
+        </select>
+      </label>
 
       <SceneLayerStackRows
         rows={rows}
