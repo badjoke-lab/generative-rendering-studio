@@ -26,7 +26,6 @@ import {
   sampleRasterToPointField,
   sampleSourceBoundLayerClip,
   sampleStudioSceneTimeline,
-  resolveStudioSceneSources,
   type KeyframeEasing,
   type MorphEasing,
   type PointField,
@@ -40,7 +39,9 @@ import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
 import { composeCanvasStack, paintCanvasStack } from "./export/composeCanvasLayers";
 import { VideoClipPanel } from "./studio/VideoClipPanel";
-import { IndependentSourceLayerPanel, type IndependentSourceBlendMode } from "./studio/IndependentSourceLayerPanel";
+import { IndependentSourceLayerPanel } from "./studio/IndependentSourceLayerPanel";
+import { createIndependentSourceComposition } from "./studio/createIndependentSourceComposition";
+import { useLegacyIndependentSourceLayerBridge } from "./studio/useLegacyIndependentSourceLayerBridge";
 import { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
 import { useLocale, type Locale } from "./i18n";
@@ -180,7 +181,28 @@ function App() {
   const videoTimelineTimeRef = useRef(0);
 
   const [raster, setRaster] = useState<RasterPixels>();
-  const [secondaryRaster, setSecondaryRaster] = useState<RasterPixels>();
+  const {
+    secondaryLayer,
+    secondaryLayerId,
+    secondaryRaster,
+    secondarySourceLabel,
+    secondaryVisible,
+    secondaryOpacity,
+    secondaryOnTop,
+    secondaryBlendMode,
+    secondaryTimingEnabled,
+    secondaryTimelineStart,
+    secondaryDuration,
+    setSecondaryRaster,
+    setSecondarySourceLabel,
+    setSecondaryVisible,
+    setSecondaryOpacity,
+    setSecondaryOnTop,
+    setSecondaryBlendMode,
+    setSecondaryTimingEnabled,
+    setSecondaryTimelineStart,
+    setSecondaryDuration,
+  } = useLegacyIndependentSourceLayerBridge();
   const [morphRaster, setMorphRaster] = useState<RasterPixels>();
   const [maskRaster, setMaskRaster] = useState<RasterPixels>();
   const [textureRaster, setTextureRaster] = useState<RasterPixels>();
@@ -253,14 +275,6 @@ function App() {
   const [exportFormat, setExportFormat] = useState<"png" | "webp">("png");
   const [sourceLabel, setSourceLabel] = useState("render");
   const [sourceDetail, setSourceDetail] = useState(() => t("source.fallbackDetail"));
-  const [secondarySourceLabel, setSecondarySourceLabel] = useState("");
-  const [secondaryVisible, setSecondaryVisible] = useState(true);
-  const [secondaryOpacity, setSecondaryOpacity] = useState(0.72);
-  const [secondaryOnTop, setSecondaryOnTop] = useState(true);
-  const [secondaryBlendMode, setSecondaryBlendMode] = useState<IndependentSourceBlendMode>("normal");
-  const [secondaryTimingEnabled, setSecondaryTimingEnabled] = useState(false);
-  const [secondaryTimelineStart, setSecondaryTimelineStart] = useState(0);
-  const [secondaryDuration, setSecondaryDuration] = useState(3);
   const [secondarySourceError, setSecondarySourceError] = useState<string | null>(null);
   const [morphLabel, setMorphLabel] = useState("");
   const [sourceError, setSourceError] = useState<string | null>(null);
@@ -507,59 +521,22 @@ function App() {
   const hasSource = Boolean(raster || (isProceduralSource && field));
   const isVideoSource = sourceKind === "video";
   const independentSourceComposition = useMemo(() => {
-    if (!hasSource || !secondaryRaster) return undefined;
-
-    const mainLayer = createSceneLayer({
-      id: "source-main",
-      sourceId: "primary-source",
-      renderer: rendererMode,
-    });
-    const secondaryLayer = createSceneLayer({
-      id: "source-secondary",
-      sourceId: "secondary-source",
-      renderer: "original",
-      visible: secondaryVisible,
-      opacity: secondaryOpacity,
-      blendMode: secondaryBlendMode,
-      ...(secondaryTimingEnabled ? { clip: { timelineStart: secondaryTimelineStart, duration: secondaryDuration } } : {}),
-    });
-    const scene = createStudioScene(
-      "independent-source-scene",
-      secondaryOnTop ? [mainLayer, secondaryLayer] : [secondaryLayer, mainLayer],
-    );
+    if (!hasSource || !secondaryLayer) return undefined;
     const mainSource = {
       id: "primary-source",
       kind: sourceKind === "still" ? "raster" : sourceKind,
       label: sourceLabel,
     } satisfies SourceDescriptor;
-    const secondarySource = {
-      id: "secondary-source",
-      kind: "raster",
-      label: secondarySourceLabel,
-    } satisfies SourceDescriptor;
-
-    return {
-      scene,
-      bindings: resolveStudioSceneSources(scene, [mainSource, secondarySource]),
-    };
-  }, [
-    hasSource,
-    rendererMode,
-    secondaryBlendMode,
-    secondaryDuration,
-    secondaryOnTop,
-    secondaryOpacity,
-    secondaryRaster,
-    secondarySourceLabel,
-    secondaryTimelineStart,
-    secondaryTimingEnabled,
-    secondaryVisible,
-    sourceKind,
-    sourceLabel,
-  ]);
-  const independentSecondaryLayer = independentSourceComposition?.bindings.find(({ layer }) => layer.id === "source-secondary")?.layer;
+    return createIndependentSourceComposition({
+      primarySource: mainSource,
+      primaryRenderer: rendererMode,
+      additionalLayers: [secondaryLayer],
+      primaryLayerIndex: secondaryOnTop ? 0 : 1,
+    });
+  }, [hasSource, rendererMode, secondaryLayer, secondaryOnTop, sourceKind, sourceLabel]);
+  const independentSecondaryLayer = independentSourceComposition?.bindings.find(({ layer }) => layer.id === secondaryLayerId)?.layer;
   const independentSceneLayers = independentSourceComposition?.scene.layers ?? [];
-  const independentSecondaryOnTop = independentSceneLayers[independentSceneLayers.length - 1]?.id === "source-secondary";
+  const independentSecondaryOnTop = independentSceneLayers[independentSceneLayers.length - 1]?.id === secondaryLayerId;
   const independentSourceTimelineDuration = independentSourceComposition ? getStudioSceneTimelineDuration(independentSourceComposition.scene) : 0;
   const independentLayerTimelineActive = Boolean(!isVideoSource && secondaryTimingEnabled && independentSecondaryLayer?.clip && independentSourceTimelineDuration > 0);
   const independentSourceTimelineSample = useMemo(
@@ -568,7 +545,7 @@ function App() {
       : undefined,
     [independentLayerTimelineActive, independentSourceComposition, motionTimelineTime],
   );
-  const independentSecondaryTimelineSample = independentSourceTimelineSample?.layers.find(({ layer }) => layer.id === "source-secondary");
+  const independentSecondaryTimelineSample = independentSourceTimelineSample?.layers.find(({ layer }) => layer.id === secondaryLayerId);
   const effectiveIndependentSecondaryVisible = Boolean(
     independentSecondaryLayer?.visible && (!independentLayerTimelineActive || independentSecondaryTimelineSample?.active),
   );
@@ -838,7 +815,6 @@ function App() {
       setSourceError(t("source.importFailed"));
     }
   };
-
 
   const clearSecondarySource = () => {
     setSecondaryRaster(undefined);
@@ -1193,7 +1169,7 @@ function App() {
     const secondaryCanvas = secondaryLayerCanvas.current;
     const exportCanvas = independentSourceComposition && secondaryCanvas
       ? composeCanvasStack(independentSourceComposition.scene.layers.map((layer) =>
-          layer.id === "source-secondary"
+          layer.id === secondaryLayerId
             ? {
                 canvas: secondaryCanvas,
                 visible: effectiveIndependentSecondaryVisible,
@@ -1227,9 +1203,9 @@ function App() {
     const repaintAnimationComposite = compositeRecordingCanvas && independentSourceComposition && secondaryCanvas
       ? (timelineTime: number) => {
           const sceneSample = sampleStudioSceneTimeline(independentSourceComposition.scene, timelineTime);
-          const secondarySample = sceneSample.layers.find(({ layer }) => layer.id === "source-secondary");
+          const secondarySample = sceneSample.layers.find(({ layer }) => layer.id === secondaryLayerId);
           return paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) =>
-            layer.id === "source-secondary"
+            layer.id === secondaryLayerId
               ? {
                   canvas: secondaryCanvas,
                   visible: secondarySample?.active ?? layer.visible,
