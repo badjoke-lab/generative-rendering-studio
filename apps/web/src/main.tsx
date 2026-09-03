@@ -33,14 +33,16 @@ import {
   type RasterPixels,
   type SourceDescriptor,
 } from "@grs/core";
-import { IndependentSourceCompositePreview } from "./canvas/IndependentSourceCompositePreview";
+import { IndependentSourceLayersCompositePreview } from "./canvas/IndependentSourceCompositePreview";
 import { OriginalPreview } from "./canvas/OriginalPreview";
 import { ProceduralSourcePanel } from "./procedural/ProceduralSourcePanel";
 import { VideoCompositePreview } from "./canvas/VideoCompositePreview";
 import { composeCanvasStack, paintCanvasStack } from "./export/composeCanvasLayers";
+import { getLayerCanvas, hasAllLayerCanvases } from "./export/layerCanvasRefs";
 import { VideoClipPanel } from "./studio/VideoClipPanel";
 import { IndependentSourceLayerPanel } from "./studio/IndependentSourceLayerPanel";
 import { createIndependentSourceComposition } from "./studio/createIndependentSourceComposition";
+import { useLayerCanvasRefs } from "./studio/useLayerCanvasRefs";
 import { useLegacyIndependentSourceLayerBridge } from "./studio/useLegacyIndependentSourceLayerBridge";
 import { VideoLayerStackPanel, type VideoLayerBlendMode } from "./studio/VideoLayerStackPanel";
 import { getCanvasRecordingCapability, recordCanvasAnimation } from "./export/recordCanvasAnimation";
@@ -165,7 +167,6 @@ function App() {
   const textureVideoInput = useRef<HTMLInputElement>(null);
   const analysisVideoInput = useRef<HTMLInputElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
-  const secondaryLayerCanvas = useRef<HTMLCanvasElement>(null);
   const originalUnderlayCanvas = useRef<HTMLCanvasElement>(null);
   const videoElement = useRef<HTMLVideoElement>(null);
   const maskVideoElement = useRef<HTMLVideoElement>(null);
@@ -182,6 +183,7 @@ function App() {
 
   const [raster, setRaster] = useState<RasterPixels>();
   const {
+    independentSources,
     secondaryLayer,
     secondaryLayerId,
     secondaryRaster,
@@ -203,6 +205,11 @@ function App() {
     setSecondaryTimelineStart,
     setSecondaryDuration,
   } = useLegacyIndependentSourceLayerBridge();
+  const independentLayerIds = useMemo(
+    () => independentSources.layers.map((layer) => layer.id),
+    [independentSources.layers],
+  );
+  const independentLayerCanvasRefs = useLayerCanvasRefs(independentLayerIds);
   const [morphRaster, setMorphRaster] = useState<RasterPixels>();
   const [maskRaster, setMaskRaster] = useState<RasterPixels>();
   const [textureRaster, setTextureRaster] = useState<RasterPixels>();
@@ -521,7 +528,7 @@ function App() {
   const hasSource = Boolean(raster || (isProceduralSource && field));
   const isVideoSource = sourceKind === "video";
   const independentSourceComposition = useMemo(() => {
-    if (!hasSource || !secondaryLayer) return undefined;
+    if (!hasSource || independentSources.layers.length === 0) return undefined;
     const mainSource = {
       id: "primary-source",
       kind: sourceKind === "still" ? "raster" : sourceKind,
@@ -530,15 +537,19 @@ function App() {
     return createIndependentSourceComposition({
       primarySource: mainSource,
       primaryRenderer: rendererMode,
-      additionalLayers: [secondaryLayer],
-      primaryLayerIndex: secondaryOnTop ? 0 : 1,
+      additionalLayers: independentSources.layers,
+      primaryLayerIndex: secondaryOnTop ? 0 : independentSources.layers.length,
     });
-  }, [hasSource, rendererMode, secondaryLayer, secondaryOnTop, sourceKind, sourceLabel]);
+  }, [hasSource, independentSources.layers, rendererMode, secondaryOnTop, sourceKind, sourceLabel]);
   const independentSecondaryLayer = independentSourceComposition?.bindings.find(({ layer }) => layer.id === secondaryLayerId)?.layer;
   const independentSceneLayers = independentSourceComposition?.scene.layers ?? [];
   const independentSecondaryOnTop = independentSceneLayers[independentSceneLayers.length - 1]?.id === secondaryLayerId;
   const independentSourceTimelineDuration = independentSourceComposition ? getStudioSceneTimelineDuration(independentSourceComposition.scene) : 0;
-  const independentLayerTimelineActive = Boolean(!isVideoSource && secondaryTimingEnabled && independentSecondaryLayer?.clip && independentSourceTimelineDuration > 0);
+  const independentLayerTimelineActive = Boolean(
+    !isVideoSource
+    && independentSources.layers.some((layer) => layer.timingEnabled)
+    && independentSourceTimelineDuration > 0
+  );
   const independentSourceTimelineSample = useMemo(
     () => independentSourceComposition && independentLayerTimelineActive
       ? sampleStudioSceneTimeline(independentSourceComposition.scene, motionTimelineTime)
@@ -549,6 +560,19 @@ function App() {
   const effectiveIndependentSecondaryVisible = Boolean(
     independentSecondaryLayer?.visible && (!independentLayerTimelineActive || independentSecondaryTimelineSample?.active),
   );
+  const independentPreviewLayers = useMemo(() => independentSources.layers.flatMap((layer) => {
+    const canvasRef = independentLayerCanvasRefs.get(layer.id);
+    if (!canvasRef) return [];
+    const timelineSample = independentSourceTimelineSample?.layers.find(({ layer: sceneLayer }) => sceneLayer.id === layer.id);
+    return [{
+      id: layer.id,
+      canvasRef,
+      raster: layer.raster,
+      visible: layer.visible && (!independentLayerTimelineActive || Boolean(timelineSample?.active)),
+      opacity: layer.opacity,
+      blendMode: layer.blendMode,
+    }];
+  }), [independentLayerCanvasRefs, independentLayerTimelineActive, independentSourceTimelineSample, independentSources.layers]);
   const videoClip = useMemo(
     () => videoDuration > 0
       ? createSourceBoundLayerClip({
@@ -1166,18 +1190,24 @@ function App() {
             { canvas, blendMode: videoBlendMode },
           ])
       : canvas;
-    const secondaryCanvas = secondaryLayerCanvas.current;
-    const exportCanvas = independentSourceComposition && secondaryCanvas
-      ? composeCanvasStack(independentSourceComposition.scene.layers.map((layer) =>
-          layer.id === secondaryLayerId
-            ? {
-                canvas: secondaryCanvas,
-                visible: effectiveIndependentSecondaryVisible,
-                opacity: layer.opacity,
-                blendMode: layer.blendMode,
-              }
-            : { canvas: primaryExportCanvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },
-        ))
+    const canCompositeIndependentSources = Boolean(
+      independentSourceComposition
+      && hasAllLayerCanvases(independentLayerIds, independentLayerCanvasRefs)
+    );
+    const exportCanvas = canCompositeIndependentSources && independentSourceComposition
+      ? composeCanvasStack(independentSourceComposition.scene.layers.map((layer) => {
+          const additionalCanvas = getLayerCanvas(layer.id, independentLayerCanvasRefs);
+          if (!additionalCanvas) {
+            return { canvas: primaryExportCanvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode };
+          }
+          const timelineSample = independentSourceTimelineSample?.layers.find(({ layer: sampleLayer }) => sampleLayer.id === layer.id);
+          return {
+            canvas: additionalCanvas,
+            visible: layer.visible && (!independentLayerTimelineActive || Boolean(timelineSample?.active)),
+            opacity: layer.opacity,
+            blendMode: layer.blendMode,
+          };
+        }))
       : primaryExportCanvas;
     const ext = exportFormat === "webp" ? "webp" : "png";
     const compositeSuffix = isVideoComposite || independentSourceComposition ? "-composite" : "";
@@ -1196,24 +1226,29 @@ function App() {
     if (!animateMorph && !animateMotion && !animateCamera && !animateLayerTiming) return;
     if (rendererMode === "original" && !animateCamera && !animateLayerTiming) return;
 
-    const secondaryCanvas = secondaryLayerCanvas.current;
-    const compositeRecordingCanvas = independentSourceComposition && secondaryCanvas
+    const hasIndependentLayerCanvases = Boolean(
+      independentSourceComposition
+      && hasAllLayerCanvases(independentLayerIds, independentLayerCanvasRefs)
+    );
+    const compositeRecordingCanvas = hasIndependentLayerCanvases
       ? document.createElement("canvas")
       : null;
-    const repaintAnimationComposite = compositeRecordingCanvas && independentSourceComposition && secondaryCanvas
+    const repaintAnimationComposite = compositeRecordingCanvas && independentSourceComposition
       ? (timelineTime: number) => {
           const sceneSample = sampleStudioSceneTimeline(independentSourceComposition.scene, timelineTime);
-          const secondarySample = sceneSample.layers.find(({ layer }) => layer.id === secondaryLayerId);
-          return paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) =>
-            layer.id === secondaryLayerId
-              ? {
-                  canvas: secondaryCanvas,
-                  visible: secondarySample?.active ?? layer.visible,
-                  opacity: layer.opacity,
-                  blendMode: layer.blendMode,
-                }
-              : { canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode },
-          ));
+          return paintCanvasStack(compositeRecordingCanvas, independentSourceComposition.scene.layers.map((layer) => {
+            const additionalCanvas = getLayerCanvas(layer.id, independentLayerCanvasRefs);
+            if (!additionalCanvas) {
+              return { canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode };
+            }
+            const sample = sceneSample.layers.find(({ layer: sampleLayer }) => sampleLayer.id === layer.id);
+            return {
+              canvas: additionalCanvas,
+              visible: sample?.active ?? layer.visible,
+              opacity: layer.opacity,
+              blendMode: layer.blendMode,
+            };
+          }));
         }
       : undefined;
     repaintAnimationComposite?.(0);
@@ -1411,18 +1446,17 @@ function App() {
       <section className="canvas-column">
         <div className="canvas-toolbar"><div className="canvas-heading"><strong>{t("preview.title")}</strong><span>{isVideoSource ? t("guide.videoPreviewHint") : t("guide.previewHint")}</span></div><span className="mode-pill">{activeModeLabel}</span></div>
         <section className="preview-frame" data-video-clip-active={isVideoSource ? (videoClipVisible ? "true" : "false") : undefined}><div className="canvas-meta"><span>{t("preview.title")}</span><span>{previewDetail}</span><span className="timecode">{isVideoSource ? formatTime(videoTimelineTime) : parameterTimelineActive ? formatTime(motionTimelineTime) : morphEnabled ? `${Math.round(morphProgress * 100)}%` : "00:00:00.00"}</span></div>
-          <IndependentSourceCompositePreview
+          <IndependentSourceLayersCompositePreview
             mainPreview={primaryPreview}
-            secondaryCanvasRef={secondaryLayerCanvas}
-            secondaryRaster={secondaryRaster}
-            secondaryVisible={effectiveIndependentSecondaryVisible}
-            secondaryOpacity={independentSecondaryLayer?.opacity ?? secondaryOpacity}
-            secondaryOnTop={independentSecondaryOnTop}
-            secondaryBlendMode={secondaryBlendMode}
+            layers={independentPreviewLayers}
+            primaryLayerIndex={secondaryOnTop ? 0 : independentPreviewLayers.length}
             cameraPanX={effectiveCameraPanX}
             cameraPanY={effectiveCameraPanY}
             cameraZoom={effectiveCameraZoom}
             cameraRotation={effectiveCameraRotation}
+            legacySecondaryVisible={secondaryRaster && effectiveIndependentSecondaryVisible ? "true" : "false"}
+            legacySecondaryLayerOrder={secondaryOnTop ? "secondary-top" : "main-top"}
+            legacySecondaryBlendMode={secondaryBlendMode}
           />
           <div className="canvas-status"><span>● {activeModeLabel} {t("preview.modeSuffix")}</span><span>{isVideoComposite ? "Canvas 2D + WebGL2" : rendererMode === "original" ? "Canvas 2D" : "WebGL2"}</span></div></section>
         <div className="transport-bar" data-timeline-mode={parameterTimelineActive ? parameterTimelineMode : isVideoSource ? "video" : "idle"} data-timeline-tracks={parameterTimelineActive ? activeParameterTracks.join("+") : isVideoSource ? "video" : ""} data-video-timeline-time={isVideoSource ? videoTimelineTime.toFixed(3) : undefined}>
