@@ -163,6 +163,72 @@ button.stage5-layer-visibility {
   text-align: right;
 }
 
+.stage5-independent-layer-editor {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stage5-independent-layer-editor > .stage5-layer-heading {
+  align-items: center;
+}
+
+.stage5-independent-layer-editor > .stage5-layer-heading > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.stage5-layer-order-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.stage5-layer-order-actions button {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: transparent;
+  color: #eef0f7;
+}
+
+.stage5-layer-order-actions button:disabled {
+  opacity: 0.35;
+}
+
+.stage5-layer-timing-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stage5-layer-timing-controls label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted, #9299aa);
+  font-size: 11px;
+}
+
+.stage5-layer-timing-controls input[type="number"] {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: #151922;
+  color: #eef0f7;
+}
+
 @media (max-width: 720px) {
   .stage5-layer-order-control {
     grid-template-columns: minmax(0, 1fr) minmax(118px, 1.2fr);
@@ -181,5 +247,9 @@ button.stage5-layer-visibility {
 
   .stage5-layer-timing .range-row output {
     min-width: 68px;
+  }
+
+  .stage5-layer-timing-controls {
+    grid-template-columns: 1fr;
   }
 }
