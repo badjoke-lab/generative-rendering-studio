@@ -1,0 +1,82 @@
+name: stage5-main-array-backed-wiring
+
+on:
+  push:
+    branches:
+      - stage5/main-array-backed-main-wiring
+
+permissions:
+  contents: write
+
+jobs:
+  wire-main:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage5/main-array-backed-main-wiring
+          fetch-depth: 0
+      - name: Patch main.tsx
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('apps/web/src/main.tsx')
+          text = path.read_text()
+
+          old_import = 'import { IndependentSourceLayerPanel, type IndependentSourceBlendMode } from "./studio/IndependentSourceLayerPanel";\n'
+          new_import = 'import { IndependentSourceLayerPanel } from "./studio/IndependentSourceLayerPanel";\nimport { useLegacyIndependentSourceLayerBridge } from "./studio/useLegacyIndependentSourceLayerBridge";\n'
+          if old_import not in text:
+              raise SystemExit('legacy layer panel import not found')
+          text = text.replace(old_import, new_import, 1)
+
+          old_raster = '  const [secondaryRaster, setSecondaryRaster] = useState<RasterPixels>();\n'
+          if old_raster not in text:
+              raise SystemExit('legacy secondary raster state not found')
+          text = text.replace(old_raster, '', 1)
+
+          old_states = '''  const [secondarySourceLabel, setSecondarySourceLabel] = useState("");
+  const [secondaryVisible, setSecondaryVisible] = useState(true);
+  const [secondaryOpacity, setSecondaryOpacity] = useState(0.72);
+  const [secondaryOnTop, setSecondaryOnTop] = useState(true);
+  const [secondaryBlendMode, setSecondaryBlendMode] = useState<IndependentSourceBlendMode>("normal");
+  const [secondaryTimingEnabled, setSecondaryTimingEnabled] = useState(false);
+  const [secondaryTimelineStart, setSecondaryTimelineStart] = useState(0);
+  const [secondaryDuration, setSecondaryDuration] = useState(3);
+'''
+          new_states = '''  const {
+    secondaryRaster,
+    setSecondaryRaster,
+    secondarySourceLabel,
+    setSecondarySourceLabel,
+    secondaryVisible,
+    setSecondaryVisible,
+    secondaryOpacity,
+    setSecondaryOpacity,
+    secondaryOnTop,
+    setSecondaryOnTop,
+    secondaryBlendMode,
+    setSecondaryBlendMode,
+    secondaryTimingEnabled,
+    setSecondaryTimingEnabled,
+    secondaryTimelineStart,
+    setSecondaryTimelineStart,
+    secondaryDuration,
+    setSecondaryDuration,
+  } = useLegacyIndependentSourceLayerBridge();
+'''
+          if old_states not in text:
+              raise SystemExit('legacy secondary scalar state block not found')
+          text = text.replace(old_states, new_states, 1)
+
+          path.write_text(text)
+      - name: Remove one-shot wiring workflow
+        run: git rm .github/workflows/stage5-main-wiring.yml
+      - name: Commit wiring
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/main.tsx
+          git commit -m "Stage 5: wire main to array-backed source state"
+          git push origin HEAD:stage5/main-array-backed-main-wiring
