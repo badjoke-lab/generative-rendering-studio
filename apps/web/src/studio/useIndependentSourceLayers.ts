@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RasterPixels } from "@grs/core";
 import {
   createIndependentSourceLayerState,
@@ -7,6 +7,7 @@ import {
   removeIndependentSourceLayer,
   type IndependentSourceLayerState,
 } from "./IndependentSourceLayers";
+import { publishIndependentSourceLayerRegistry } from "./independentSourceLayerRegistry";
 
 export function useIndependentSourceLayers() {
   const [layers, setLayers] = useState<readonly IndependentSourceLayerState[]>([]);
@@ -48,6 +49,10 @@ export function useIndependentSourceLayers() {
   }, []);
 
   const clearLayers = useCallback(() => setLayers([]), []);
+
+  useEffect(() => {
+    publishIndependentSourceLayerRegistry({ layers, patchLayer });
+  }, [layers, patchLayer]);
 
   return {
     layers,
