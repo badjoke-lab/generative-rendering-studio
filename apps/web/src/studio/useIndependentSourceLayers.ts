@@ -51,8 +51,8 @@ export function useIndependentSourceLayers() {
   const clearLayers = useCallback(() => setLayers([]), []);
 
   useEffect(() => {
-    publishIndependentSourceLayerRegistry({ layers, patchLayer });
-  }, [layers, patchLayer]);
+    publishIndependentSourceLayerRegistry({ layers, patchLayer, removeLayer, moveLayer });
+  }, [layers, patchLayer, removeLayer, moveLayer]);
 
   return {
     layers,
