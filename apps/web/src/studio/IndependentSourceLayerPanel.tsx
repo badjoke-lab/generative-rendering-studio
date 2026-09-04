@@ -181,8 +181,8 @@ export function IndependentSourceLayerPanel({
           <div className="stage5-layer-order-control">
             <span>{layer.label}</span>
             <div className="range-row">
-              <button type="button" aria-label={`${labels.order}: ${layer.label} up`} disabled={disabled || index === 0} onClick={() => registry.moveLayer(layer.id, index - 1)}>↑</button>
-              <button type="button" aria-label={`${labels.order}: ${layer.label} down`} disabled={disabled || index === registry.layers.length - 1} onClick={() => registry.moveLayer(layer.id, index + 1)}>↓</button>
+              <button type="button" aria-label={`Move ${layer.label} up`} disabled={disabled || index === 0} onClick={() => registry.moveLayer(layer.id, index - 1)}>↑</button>
+              <button type="button" aria-label={`Move ${layer.label} down`} disabled={disabled || index === registry.layers.length - 1} onClick={() => registry.moveLayer(layer.id, index + 1)}>↓</button>
               <button type="button" aria-label={`Remove ${layer.label}`} disabled={disabled} onClick={() => registry.removeLayer(layer.id)}>×</button>
             </div>
           </div>
