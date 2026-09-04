@@ -122,6 +122,20 @@ export function IndependentSourceLayerPanel({
     registry.patchLayer(layerId, patch);
   };
 
+  const patchLayerTiming = (
+    layerId: string,
+    index: number,
+    patch: { timingEnabled?: boolean; timelineStart?: number; duration?: number },
+  ) => {
+    if (index === 0) {
+      if (patch.timingEnabled !== undefined) onSecondaryTimingEnabledChange(patch.timingEnabled);
+      if (patch.timelineStart !== undefined) onSecondaryTimelineStartChange(patch.timelineStart);
+      if (patch.duration !== undefined) onSecondaryDurationChange(patch.duration);
+      return;
+    }
+    registry.patchLayer(layerId, patch);
+  };
+
   const timingUnavailable = Boolean(disabled || timingDisabled);
 
   return (
@@ -162,54 +176,95 @@ export function IndependentSourceLayerPanel({
         onBlendModeChange={(layerId, blendMode) => patchAdditionalLayer(layerId, { blendMode })}
       />
 
-      <div className="stage5-layer-timing" data-stage5-layer-timing={secondaryTimingEnabled ? "on" : "off"}>
-        <div className="toggle-row">
-          <span>{labels.timing}</span>
-          <button
-            type="button"
-            aria-label={labels.timingToggle}
-            className={`toggle ${secondaryTimingEnabled ? "on" : ""}`}
-            aria-pressed={secondaryTimingEnabled}
-            disabled={timingUnavailable}
-            onClick={() => onSecondaryTimingEnabledChange(!secondaryTimingEnabled)}
-          />
+      {registry.layers.length > 0 ? registry.layers.map((layer, index) => (
+        <div className="stage5-layer-timing" data-stage5-layer-controls={layer.id} data-stage5-layer-timing={layer.timingEnabled ? "on" : "off"} key={layer.id}>
+          <div className="stage5-layer-order-control">
+            <span>{layer.label}</span>
+            <div className="range-row">
+              <button type="button" aria-label={`${labels.order}: ${layer.label} up`} disabled={disabled || index === 0} onClick={() => registry.moveLayer(layer.id, index - 1)}>↑</button>
+              <button type="button" aria-label={`${labels.order}: ${layer.label} down`} disabled={disabled || index === registry.layers.length - 1} onClick={() => registry.moveLayer(layer.id, index + 1)}>↓</button>
+              <button type="button" aria-label={`Remove ${layer.label}`} disabled={disabled} onClick={() => registry.removeLayer(layer.id)}>×</button>
+            </div>
+          </div>
+          <div className="toggle-row">
+            <span>{labels.timing}</span>
+            <button
+              type="button"
+              aria-label={`${labels.timingToggle}: ${layer.label}`}
+              className={`toggle ${layer.timingEnabled ? "on" : ""}`}
+              aria-pressed={layer.timingEnabled}
+              disabled={timingUnavailable}
+              onClick={() => patchLayerTiming(layer.id, index, { timingEnabled: !layer.timingEnabled })}
+            />
+          </div>
+          {layer.timingEnabled && !timingDisabled && <>
+            <p>{labels.timingHint}</p>
+            <label>
+              {labels.timelineStart}
+              <div className="range-row">
+                <input
+                  aria-label={`${labels.timelineStart}: ${layer.label}`}
+                  type="range"
+                  min="0"
+                  max={maxTimelineTime}
+                  step="0.25"
+                  value={layer.timelineStart}
+                  disabled={disabled}
+                  onChange={(event) => patchLayerTiming(layer.id, index, { timelineStart: Number(event.target.value) })}
+                />
+                <output>{layer.timelineStart.toFixed(2)} {labels.seconds}</output>
+              </div>
+            </label>
+            <label>
+              {labels.timelineDuration}
+              <div className="range-row">
+                <input
+                  aria-label={`${labels.timelineDuration}: ${layer.label}`}
+                  type="range"
+                  min="0.25"
+                  max={maxTimelineTime}
+                  step="0.25"
+                  value={layer.duration}
+                  disabled={disabled}
+                  onChange={(event) => patchLayerTiming(layer.id, index, { duration: Number(event.target.value) })}
+                />
+                <output>{layer.duration.toFixed(2)} {labels.seconds}</output>
+              </div>
+            </label>
+          </>}
         </div>
-        {secondaryTimingEnabled && !timingDisabled && <>
-          <p>{labels.timingHint}</p>
-          <label>
-            {labels.timelineStart}
-            <div className="range-row">
-              <input
-                aria-label={labels.timelineStart}
-                type="range"
-                min="0"
-                max={maxTimelineTime}
-                step="0.25"
-                value={secondaryTimelineStart}
-                disabled={disabled}
-                onChange={(event) => onSecondaryTimelineStartChange(Number(event.target.value))}
-              />
-              <output>{secondaryTimelineStart.toFixed(2)} {labels.seconds}</output>
-            </div>
-          </label>
-          <label>
-            {labels.timelineDuration}
-            <div className="range-row">
-              <input
-                aria-label={labels.timelineDuration}
-                type="range"
-                min="0.25"
-                max={maxTimelineTime}
-                step="0.25"
-                value={secondaryDuration}
-                disabled={disabled}
-                onChange={(event) => onSecondaryDurationChange(Number(event.target.value))}
-              />
-              <output>{secondaryDuration.toFixed(2)} {labels.seconds}</output>
-            </div>
-          </label>
-        </>}
-      </div>
+      )) : (
+        <div className="stage5-layer-timing" data-stage5-layer-timing={secondaryTimingEnabled ? "on" : "off"}>
+          <div className="toggle-row">
+            <span>{labels.timing}</span>
+            <button
+              type="button"
+              aria-label={labels.timingToggle}
+              className={`toggle ${secondaryTimingEnabled ? "on" : ""}`}
+              aria-pressed={secondaryTimingEnabled}
+              disabled={timingUnavailable}
+              onClick={() => onSecondaryTimingEnabledChange(!secondaryTimingEnabled)}
+            />
+          </div>
+          {secondaryTimingEnabled && !timingDisabled && <>
+            <p>{labels.timingHint}</p>
+            <label>
+              {labels.timelineStart}
+              <div className="range-row">
+                <input aria-label={labels.timelineStart} type="range" min="0" max={maxTimelineTime} step="0.25" value={secondaryTimelineStart} disabled={disabled} onChange={(event) => onSecondaryTimelineStartChange(Number(event.target.value))} />
+                <output>{secondaryTimelineStart.toFixed(2)} {labels.seconds}</output>
+              </div>
+            </label>
+            <label>
+              {labels.timelineDuration}
+              <div className="range-row">
+                <input aria-label={labels.timelineDuration} type="range" min="0.25" max={maxTimelineTime} step="0.25" value={secondaryDuration} disabled={disabled} onChange={(event) => onSecondaryDurationChange(Number(event.target.value))} />
+                <output>{secondaryDuration.toFixed(2)} {labels.seconds}</output>
+              </div>
+            </label>
+          </>}
+        </div>
+      )}
     </section>
   );
 }
