@@ -1,5 +1,6 @@
 import type { BlendMode } from "@grs/core";
 import { SceneLayerStackRows } from "./SceneLayerStackRows";
+import { useIndependentSourceLayerRegistry } from "./independentSourceLayerRegistry";
 import "./video-layer-stack.css";
 
 export type IndependentSourceBlendMode = Extract<BlendMode, "normal" | "multiply" | "screen">;
@@ -70,45 +71,56 @@ export function IndependentSourceLayerPanel({
   onSecondaryTimelineStartChange: (seconds: number) => void;
   onSecondaryDurationChange: (seconds: number) => void;
 }) {
+  const registry = useIndependentSourceLayerRegistry();
+  const firstRegistryLayer = registry.layers[0];
+  const additionalRows = registry.layers.length > 0
+    ? registry.layers.map((layer, index) => ({
+        id: index === 0 ? "source-secondary" : layer.id,
+        label: layer.label,
+        detail: labels.secondarySource,
+        visible: layer.visible,
+        visibilityLabel: labels.secondaryToggle,
+        opacity: layer.opacity,
+        opacityLabel: labels.secondaryOpacity,
+        blendMode: layer.blendMode,
+      }))
+    : [{
+        id: "source-secondary",
+        label: secondaryLabel,
+        detail: labels.secondarySource,
+        visible: secondaryVisible,
+        visibilityLabel: labels.secondaryToggle,
+        opacity: secondaryOpacity,
+        opacityLabel: labels.secondaryOpacity,
+        blendMode: secondaryBlendMode,
+      }];
+  const mainRow = {
+    id: "source-main",
+    label: mainLabel,
+    detail: labels.mainSource,
+    visible: true,
+    visibilityLocked: true,
+  };
   const rows = secondaryOnTop
-    ? [
-        {
-          id: "source-main",
-          label: mainLabel,
-          detail: labels.mainSource,
-          visible: true,
-          visibilityLocked: true,
-        },
-        {
-          id: "source-secondary",
-          label: secondaryLabel,
-          detail: labels.secondarySource,
-          visible: secondaryVisible,
-          visibilityLabel: labels.secondaryToggle,
-          opacity: secondaryOpacity,
-          opacityLabel: labels.secondaryOpacity,
-          blendMode: secondaryBlendMode,
-        },
-      ]
-    : [
-        {
-          id: "source-secondary",
-          label: secondaryLabel,
-          detail: labels.secondarySource,
-          visible: secondaryVisible,
-          visibilityLabel: labels.secondaryToggle,
-          opacity: secondaryOpacity,
-          opacityLabel: labels.secondaryOpacity,
-          blendMode: secondaryBlendMode,
-        },
-        {
-          id: "source-main",
-          label: mainLabel,
-          detail: labels.mainSource,
-          visible: true,
-          visibilityLocked: true,
-        },
-      ];
+    ? [mainRow, ...additionalRows]
+    : [...additionalRows, mainRow];
+
+  const patchAdditionalLayer = (
+    layerId: string,
+    patch: { visible?: boolean; opacity?: number; blendMode?: IndependentSourceBlendMode },
+  ) => {
+    if (layerId === "source-secondary") {
+      if (firstRegistryLayer) {
+        registry.patchLayer(firstRegistryLayer.id, patch);
+        return;
+      }
+      if (patch.visible !== undefined) onSecondaryVisibleChange(patch.visible);
+      if (patch.opacity !== undefined) onSecondaryOpacityChange(patch.opacity);
+      if (patch.blendMode !== undefined) onSecondaryBlendModeChange(patch.blendMode);
+      return;
+    }
+    registry.patchLayer(layerId, patch);
+  };
 
   const timingUnavailable = Boolean(disabled || timingDisabled);
 
@@ -145,15 +157,9 @@ export function IndependentSourceLayerPanel({
           multiply: labels.multiply,
           screen: labels.screen,
         }}
-        onVisibleChange={(layerId, visible) => {
-          if (layerId === "source-secondary") onSecondaryVisibleChange(visible);
-        }}
-        onOpacityChange={(layerId, opacity) => {
-          if (layerId === "source-secondary") onSecondaryOpacityChange(opacity);
-        }}
-        onBlendModeChange={(layerId, blendMode) => {
-          if (layerId === "source-secondary") onSecondaryBlendModeChange(blendMode);
-        }}
+        onVisibleChange={(layerId, visible) => patchAdditionalLayer(layerId, { visible })}
+        onOpacityChange={(layerId, opacity) => patchAdditionalLayer(layerId, { opacity })}
+        onBlendModeChange={(layerId, blendMode) => patchAdditionalLayer(layerId, { blendMode })}
       />
 
       <div className="stage5-layer-timing" data-stage5-layer-timing={secondaryTimingEnabled ? "on" : "off"}>
