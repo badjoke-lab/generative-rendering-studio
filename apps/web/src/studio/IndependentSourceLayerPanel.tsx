@@ -72,9 +72,10 @@ export function IndependentSourceLayerPanel({
   onSecondaryDurationChange: (seconds: number) => void;
 }) {
   const registry = useIndependentSourceLayerRegistry();
+  const firstRegistryLayer = registry.layers[0];
   const additionalRows = registry.layers.length > 0
-    ? registry.layers.map((layer) => ({
-        id: layer.id,
+    ? registry.layers.map((layer, index) => ({
+        id: index === 0 ? "source-secondary" : layer.id,
         label: layer.label,
         detail: labels.secondarySource,
         visible: layer.visible,
@@ -109,6 +110,10 @@ export function IndependentSourceLayerPanel({
     patch: { visible?: boolean; opacity?: number; blendMode?: IndependentSourceBlendMode },
   ) => {
     if (layerId === "source-secondary") {
+      if (firstRegistryLayer) {
+        registry.patchLayer(firstRegistryLayer.id, patch);
+        return;
+      }
       if (patch.visible !== undefined) onSecondaryVisibleChange(patch.visible);
       if (patch.opacity !== undefined) onSecondaryOpacityChange(patch.opacity);
       if (patch.blendMode !== undefined) onSecondaryBlendModeChange(patch.blendMode);
