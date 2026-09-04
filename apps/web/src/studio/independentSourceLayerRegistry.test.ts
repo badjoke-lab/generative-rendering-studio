@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { RasterPixels } from "@grs/core";
 import { createIndependentSourceLayerState } from "./IndependentSourceLayers";
 import { publishIndependentSourceLayerRegistry } from "./independentSourceLayerRegistry";
 
-const raster = new ImageData(1, 1);
+const raster: RasterPixels = {
+  width: 1,
+  height: 1,
+  data: new Uint8ClampedArray([0, 0, 0, 255]),
+};
 
 describe("independent source layer registry", () => {
   it("accepts array-backed layer snapshots", () => {
